@@ -1,0 +1,12 @@
+{
+  "TableName": "db-discovery-results",
+  "KeySchema": [
+    { "AttributeName": "account_id", "KeyType": "HASH" },
+    { "AttributeName": "instance_db_id", "KeyType": "RANGE" }
+  ],
+  "AttributeDefinitions": [
+    { "AttributeName": "account_id", "AttributeType": "S" },
+    { "AttributeName": "instance_db_id", "AttributeType": "S" }
+  ],
+  "BillingMode": "PAY_PER_REQUEST"
+}
