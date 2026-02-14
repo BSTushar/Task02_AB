@@ -1,0 +1,21 @@
+{
+  "account_id": "123456789012",
+  "instance_db_id": "i-0abc123def456#mysql-3306",
+  "instance_id": "i-0abc123def456",
+  "instance_type": "t3.medium",
+  "tags": {
+    "Name": "db-server-01",
+    "Environment": "production",
+    "Project": "db-discovery"
+  },
+  "db_id": "mysql-3306",
+  "engine": "mysql",
+  "version": "8.0.35",
+  "status": "running",
+  "port": 3306,
+  "data_size_mb": 2048,
+  "system_memory_mb": 4096,
+  "system_cpu_cores": 2,
+  "discovery_timestamp": "2025-02-04T10:00:00Z",
+  "discovery_status": "success"
+}

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "2.2",
+  "description": "DB Discovery - detects MySQL, PostgreSQL, MongoDB. Read-only.",
+  "parameters": {
+    "S3Bucket": {
+      "type": "String",
+      "description": "S3 bucket containing discovery_python.py"
+    },
+    "S3Key": {
+      "type": "String",
+      "default": "ssm/discovery_python.py",
+      "description": "S3 key for discovery script"
+    }
+  },
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "DiscoverDatabases",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -e","export PATH=/usr/local/bin:/usr/bin:$PATH","aws s3 cp s3://{{ S3Bucket }}/{{ S3Key }} /var/tmp/db_discovery.py","/usr/bin/python3 /var/tmp/db_discovery.py"
+        ]
+      }
+    }
+  ]
+}
