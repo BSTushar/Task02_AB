@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>DB Discovery Inventory</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: radial-gradient(circle at top, #111827 0, #020617 40%, #020617 100%); }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100">
+  <div class="max-w-6xl mx-auto px-4 py-6">
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+      <div>
+        <h1 class="text-3xl font-semibold tracking-tight">Database Discovery Inventory</h1>
+        <p class="text-slate-300 mt-1 text-sm md:text-base">
+          Cross-account view of EC2 databases with region/account navigation.
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs text-slate-400">
+        <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-200">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          Live from API
+        </span>
+      </div>
+    </header>
+
+    <section class="bg-slate-900/70 backdrop-blur border border-slate-700/60 rounded-xl p-4 mb-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <div>
+          <label for="regionSelect" class="block text-xs font-medium text-slate-400 mb-1">Region</label>
+          <select id="regionSelect" class="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"></select>
+        </div>
+        <div>
+          <label for="accountSelect" class="block text-xs font-medium text-slate-400 mb-1">Account</label>
+          <select id="accountSelect" class="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"></select>
+        </div>
+        <div class="flex flex-col md:flex-row gap-2 md:justify-end">
+          <button id="refreshBtn" class="inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-500 text-slate-900 text-sm font-medium px-4 py-2 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-emerald-500">
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div id="statusLine" class="mt-3 text-xs text-slate-400 h-4 flex items-center"></div>
+    </section>
+
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-3">
+        <p class="text-xs text-slate-400">Instances</p>
+        <p id="summaryInstances" class="text-2xl font-semibold mt-1">–</p>
+      </div>
+      <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-3">
+        <p class="text-xs text-slate-400">Databases</p>
+        <p id="summaryDatabases" class="text-2xl font-semibold mt-1">–</p>
+      </div>
+      <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-3">
+        <p class="text-xs text-slate-400">Engines</p>
+        <p id="summaryEngines" class="text-sm mt-1 text-slate-200">–</p>
+      </div>
+    </section>
+
+    <section class="bg-slate-900/70 backdrop-blur border border-slate-700/60 rounded-xl p-4 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm font-medium text-slate-200">Databases by Engine (selected region/account)</h2>
+      </div>
+      <canvas id="engineChart" class="w-full h-48"></canvas>
+    </section>
+
+    <section class="bg-slate-900/70 backdrop-blur border border-slate-700/60 rounded-xl overflow-hidden">
+      <div class="border-b border-slate-800/80 px-4 py-2.5 flex items-center justify-between">
+        <h2 class="text-sm font-medium text-slate-200">Instances & Databases</h2>
+        <p id="tableCaption" class="text-[11px] text-slate-400"></p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-900">
+            <tr>
+              <th class="px-4 py-2 text-left font-semibold text-slate-400 border-b border-slate-800">Instance</th>
+              <th class="px-4 py-2 text-left font-semibold text-slate-400 border-b border-slate-800">Type</th>
+              <th class="px-4 py-2 text-left font-semibold text-slate-400 border-b border-slate-800">Tags</th>
+              <th class="px-4 py-2 text-left font-semibold text-slate-400 border-b border-slate-800">Databases</th>
+              <th class="px-4 py-2 text-left font-semibold text-slate-400 border-b border-slate-800">Status</th>
+            </tr>
+          </thead>
+          <tbody id="instancesBody" class="divide-y divide-slate-800 bg-slate-900/40"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="hidden px-4 py-6 text-center text-sm text-slate-400">
+        No data for this selection. Try another region/account or re-run discovery.
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Set to your API Gateway invoke URL including stage (…/prod) — no trailing slash.
+    const BASE_URL = "https://o9v2qz6dq2.execute-api.ap-south-1.amazonaws.com/prod";
+
+    const regionSelect = document.getElementById("regionSelect");
+    const accountSelect = document.getElementById("accountSelect");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const statusLine = document.getElementById("statusLine");
+    const tbody = document.getElementById("instancesBody");
+    const emptyState = document.getElementById("emptyState");
+    const summaryInstances = document.getElementById("summaryInstances");
+    const summaryDatabases = document.getElementById("summaryDatabases");
+    const summaryEngines = document.getElementById("summaryEngines");
+    const tableCaption = document.getElementById("tableCaption");
+
+    let engineChart;
+
+    function setStatus(msg, type = "info") {
+      const colors = {
+        info: "text-slate-400",
+        success: "text-emerald-400",
+        error: "text-red-400"
+      };
+      statusLine.className = "mt-3 text-xs h-4 flex items-center " + (colors[type] || colors.info);
+      statusLine.textContent = msg || "";
+    }
+
+    async function fetchJson(url) {
+      const res = await fetch(url);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+      return res.json();
+    }
+
+    async function loadRegions() {
+      setStatus("Loading regions...");
+      try {
+        const data = await fetchJson(`${BASE_URL}/regions`);
+        const regions = data.regions || [];
+        regionSelect.innerHTML = "";
+        regions.forEach(r => {
+          const opt = document.createElement("option");
+          opt.value = r;
+          opt.textContent = r;
+          regionSelect.appendChild(opt);
+        });
+        if (!regions.length) {
+          setStatus("No regions found in data.", "info");
+          return;
+        }
+        regionSelect.value = regions[0];
+        await loadAccounts();
+        setStatus("Regions loaded.", "success");
+      } catch (e) {
+        console.error(e);
+        setStatus("Failed to load regions.", "error");
+      }
+    }
+
+    async function loadAccounts() {
+      const region = regionSelect.value;
+      if (!region) return;
+      setStatus(`Loading accounts for ${region}...`);
+      try {
+        const data = await fetchJson(`${BASE_URL}/regions/${encodeURIComponent(region)}/accounts`);
+        const accounts = data.accounts || [];
+        accountSelect.innerHTML = "";
+        accounts.forEach(a => {
+          const opt = document.createElement("option");
+          opt.value = a;
+          opt.textContent = a;
+          accountSelect.appendChild(opt);
+        });
+        if (!accounts.length) {
+          tbody.innerHTML = "";
+          emptyState.classList.remove("hidden");
+          summaryInstances.textContent = "0";
+          summaryDatabases.textContent = "0";
+          summaryEngines.textContent = "–";
+          tableCaption.textContent = `Region ${region}, no accounts with data`;
+          setStatus("No accounts with data.", "info");
+          updateEngineChart([]);
+          return;
+        }
+        accountSelect.value = accounts[0];
+        await loadInstances();
+        setStatus("Accounts loaded.", "success");
+      } catch (e) {
+        console.error(e);
+        setStatus("Failed to load accounts.", "error");
+      }
+    }
+
+    function formatTags(tags) {
+      if (!tags || typeof tags !== "object") return "–";
+      const entries = Object.entries(tags);
+      if (!entries.length) return "–";
+      return entries.map(([k, v]) => `${k}=${v}`).join(", ");
+    }
+
+    function computeSummaries(instances) {
+      const engineCounts = {};
+      let dbCount = 0;
+      instances.forEach(inst => {
+        const dbs = inst.databases || [];
+        dbCount += dbs.length;
+        dbs.forEach(d => {
+          if (!d.engine) return;
+          engineCounts[d.engine] = (engineCounts[d.engine] || 0) + 1;
+        });
+      });
+      summaryInstances.textContent = instances.length.toString();
+      summaryDatabases.textContent = dbCount.toString();
+      summaryEngines.textContent = Object.keys(engineCounts).length
+        ? Object.keys(engineCounts).join(", ")
+        : "–";
+      updateEngineChart(engineCounts);
+    }
+
+    function updateEngineChart(engineCounts) {
+      const ctx = document.getElementById("engineChart").getContext("2d");
+      const labels = Object.keys(engineCounts);
+      const data = labels.map(l => engineCounts[l]);
+      if (engineChart) {
+        engineChart.data.labels = labels;
+        engineChart.data.datasets[0].data = data;
+        engineChart.update();
+        return;
+      }
+      engineChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Databases",
+            data,
+            backgroundColor: "rgba(16, 185, 129, 0.6)",
+            borderColor: "rgb(16, 185, 129)",
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { precision: 0 }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    async function loadInstances() {
+      const region = regionSelect.value;
+      const account = accountSelect.value;
+      if (!region || !account) return;
+      setStatus(`Loading instances for ${account} in ${region}...`);
+      try {
+        const url = `${BASE_URL}/accounts/${encodeURIComponent(account)}/instances?region=${encodeURIComponent(region)}`;
+        const data = await fetchJson(url);
+        const instances = data.instances || [];
+        tbody.innerHTML = "";
+        if (!instances.length) {
+          emptyState.classList.remove("hidden");
+          computeSummaries([]);
+          tableCaption.textContent = `Region ${region}, account ${account}: 0 instances`;
+          setStatus("No instances for this selection.", "info");
+          return;
+        }
+        emptyState.classList.add("hidden");
+        instances.forEach(inst => {
+          const tr = document.createElement("tr");
+          const dbs = inst.databases || [];
+          const dbLabel = dbs.length
+            ? dbs.map(d => `${d.engine} ${d.version} (${d.status})`).join("; ")
+            : "No known DBs";
+          const overallStatus = inst.discovery_status || "unknown";
+          const statusColor = overallStatus === "success"
+            ? "text-emerald-400"
+            : overallStatus === "failed"
+            ? "text-red-400"
+            : "text-slate-300";
+          tr.innerHTML = `
+            <td class="px-4 py-2 align-top text-slate-100 font-mono text-xs">${inst.instance_id}</td>
+            <td class="px-4 py-2 align-top text-slate-200">${inst.instance_type || "unknown"}</td>
+            <td class="px-4 py-2 align-top text-slate-300 text-xs">${formatTags(inst.tags)}</td>
+            <td class="px-4 py-2 align-top text-slate-200 text-xs">${dbLabel}</td>
+            <td class="px-4 py-2 align-top text-xs ${statusColor}">${overallStatus}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+        computeSummaries(instances);
+        tableCaption.textContent = `Region ${region}, account ${account}: ${instances.length} instance(s)`;
+        setStatus("Instances loaded.", "success");
+      } catch (e) {
+        console.error(e);
+        tbody.innerHTML = "";
+        emptyState.classList.remove("hidden");
+        computeSummaries([]);
+        tableCaption.textContent = "";
+        setStatus("Failed to load instances.", "error");
+      }
+    }
+
+    regionSelect.addEventListener("change", () => loadAccounts());
+    accountSelect.addEventListener("change", () => loadInstances());
+    refreshBtn.addEventListener("click", () => loadRegions());
+
+    (async () => {
+      await loadRegions();
+    })();
+  </script>
+</body>
+</html>
+
