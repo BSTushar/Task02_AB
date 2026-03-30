@@ -2,27 +2,38 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AssumeSpokeRole",
+      "Sid": "AssumeSpokeRoleAnyMember",
       "Effect": "Allow",
       "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::*:role/DBDiscoverySpokeRole"
+    },
+    {
+      "Sid": "OrganizationsRead",
+      "Effect": "Allow",
+      "Action": [
+        "organizations:ListAccounts",
+        "organizations:DescribeOrganization"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "S3InventoryWrite",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject"
+      ],
       "Resource": [
-        "arn:aws:iam::111111111111:role/DBDiscoverySpokeRole"
+        "arn:aws:s3:::my-db-discovery-bucket/discovery/*"
       ]
     },
     {
-      "Sid": "DynamoDBReadWrite",
+      "Sid": "S3InventoryRead",
       "Effect": "Allow",
       "Action": [
-        "dynamodb:PutItem",
-        "dynamodb:BatchWriteItem",
-        "dynamodb:GetItem",
-        "dynamodb:Query",
-        "dynamodb:Scan",
-        "dynamodb:UpdateItem"
+        "s3:GetObject"
       ],
       "Resource": [
-        "arn:aws:dynamodb:*:*:table/db-discovery-results",
-        "arn:aws:dynamodb:*:*:table/db-discovery-results/index/*"
+        "arn:aws:s3:::my-db-discovery-bucket/discovery/*"
       ]
     },
     {

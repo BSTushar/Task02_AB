@@ -4,7 +4,7 @@
 
 > **Confidentiality Notice:** This project is confidential and proprietary to AIRBUS. Unauthorized distribution, disclosure, or use is strictly prohibited.
 
-[![AWS](https://img.shields.io/badge/AWS-Lambda%20%7C%20SSM%20%7C%20DynamoDB-orange)](https://aws.amazon.com)
+[![AWS](https://img.shields.io/badge/AWS-Lambda%20%7C%20SSM%20%7C%20S3-orange)](https://aws.amazon.com)
 [![Python](https://img.shields.io/badge/Python-3.11-blue)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -30,9 +30,9 @@ Management Account                    Spoke Accounts
 │       ↓             │   AssumeRole │       ↓          │
 │ Discovery Lambda ───┼─────────────►│ SSM Run Command  │
 │       ↓             │              │       ↓          │
-│ DynamoDB ◄──────────┘              │ discovery_python │
+│ S3 (inventory snapshot) ◄──────────┘ │ discovery_python │
 │       ↑                            └──────────────────┘
-│ API Gateway + Lambda
+│ API Gateway + Lambda (reads S3)
 └─────────────────────┘
 ```
 
@@ -46,7 +46,7 @@ Management Account                    Spoke Accounts
    cd Task02_AB
    ```
 
-2. **Follow setup** — See [FULL_SETUP_IN_ORDER.md](FULL_SETUP_IN_ORDER.md) or [DEMO_BABY_STEPS.md](DEMO_BABY_STEPS.md) for step-by-step instructions (Console & CLI)
+2. **Follow setup** — [FULL_SETUP_IN_ORDER.md](FULL_SETUP_IN_ORDER.md) (S3 inventory, API, optional EventBridge schedule)
 
 3. **Run discovery**
    ```bash
@@ -69,11 +69,11 @@ Management Account                    Spoke Accounts
 | `iam/` | IAM policies (trust, spoke role, Lambda roles, EC2 instance) |
 | `ssm/` | Discovery script (`discovery_python.py`) and SSM document |
 | `lambda/` | Discovery handler and API handler |
-| `schema/` | DynamoDB table definition and example record |
+| `schema/` | Example discovery record shape (`example-record.json`) |
 | `api/` | API Gateway config and curl examples |
-| `FULL_SETUP_IN_ORDER.md` / `DEMO_BABY_STEPS.md` | Step-by-step setup (Console & CLI) |
-| `TASK_02_SENIOR_REVIEW_PACKAGE.md` | Full review package, Q&A, demo script |
-| `TASK_02_PRESENTATION.pptx` | PowerPoint presentation |
+| `inventory_ui.html` | Optional region/account dashboard (set `BASE_URL`) |
+| `FULL_SETUP_IN_ORDER.md` | Step-by-step setup (Console) |
+| `COST_AND_STOP_RESOURCES.md` | Cost tips and tidy-up |
 
 ---
 
@@ -81,10 +81,12 @@ Management Account                    Spoke Accounts
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/health` | Health check, total records |
+| GET | `/health` | Health, record count, `store: s3` |
+| GET | `/regions` | Regions in current snapshot |
+| GET | `/regions/{region}/accounts` | Accounts with data in that region |
 | GET | `/accounts` | List accounts with discovery data |
-| GET | `/accounts/{accountId}/instances` | Instances, databases, **instance_type**, and **tags** per account |
-| GET | `/databases` | All databases (optional: `?engine=mysql&account_id=123`) |
+| GET | `/accounts/{accountId}/instances` | Instances + DBs; optional `?region=` |
+| GET | `/databases` | All rows (optional: `?engine=`, `?account_id=`) |
 
 Full REST API reference (request/response fields): [api/api-gateway-config.md](api/api-gateway-config.md)
 
@@ -132,7 +134,7 @@ Replace these placeholders before deployment:
 |-------------|-------------|
 | `MANAGEMENT_ACCOUNT_ID` | Management account ID |
 | `SPOKE_ACCOUNT_1_ID`, `SPOKE_ACCOUNT_2_ID` | Member account IDs |
-| `YOUR_BUCKET_NAME` | S3 bucket for discovery script |
+| `YOUR_BUCKET_NAME` | S3 bucket (script under `ssm/`; inventory JSON under `discovery/` by default) |
 | `YOUR_API_ID` | API Gateway ID |
 
 ---
@@ -142,7 +144,7 @@ Replace these placeholders before deployment:
 - Only SSM-managed instances
 - MySQL, PostgreSQL, MongoDB only
 - Batch discovery (not real-time)
-- Single region
+- Configure regions via `DISCOVERY_REGIONS` on the discovery Lambda
 - No RDS/Aurora; no container discovery
 
 ---
