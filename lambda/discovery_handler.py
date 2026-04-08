@@ -18,6 +18,10 @@ S3_BUCKET = os.environ.get("S3_BUCKET", "")
 RESULTS_S3_BUCKET = os.environ.get("RESULTS_S3_BUCKET", "") or S3_BUCKET
 RESULTS_S3_KEY = os.environ.get("RESULTS_S3_KEY", "discovery/inventory.json")
 COMMAND_TIMEOUT = int(os.environ.get("COMMAND_TIMEOUT", "60"))
+# StackSet DBDiscovery embeds bucket/key in the shell script — no document parameters. Passing
+# S3Bucket/S3Key causes SendCommand InvalidParameters. Set SSM_PASS_S3_PARAMETERS=true only if
+# your SSM document declares those parameters (e.g. manual upload from ssm/ssm-document.json).
+SSM_PASS_S3_PARAMETERS = os.environ.get("SSM_PASS_S3_PARAMETERS", "").lower() in ("1", "true", "yes")
 # Set DISCOVER_ALL_ORG_ACCOUNTS=true when Lambda runs in the Org management account (or delegated admin)
 # to scan every ACTIVE member; optional ORG_EXCLUDE_ACCOUNT_IDS=comma list; ORG_SKIP_MANAGEMENT_ACCOUNT=true
 DISCOVER_ALL_ORG_ACCOUNTS = os.environ.get("DISCOVER_ALL_ORG_ACCOUNTS", "").lower() in ("1", "true", "yes")
@@ -119,7 +123,7 @@ def run_ssm_command(ssm_client, instance_ids, account_id):
         return {"status": "skipped", "reason": "no_managed_instances", "instances": []}
 
     params = {"DocumentName": SSM_DOCUMENT, "InstanceIds": instance_ids}
-    if S3_BUCKET:
+    if S3_BUCKET and SSM_PASS_S3_PARAMETERS:
         params["Parameters"] = {"S3Bucket": [S3_BUCKET], "S3Key": ["ssm/discovery_python.py"]}
 
     try:

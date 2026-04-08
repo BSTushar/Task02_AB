@@ -71,6 +71,7 @@ Management Account                    Spoke Accounts
 | `lambda/` | Discovery handler and API handler |
 | `schema/` | Example discovery record shape (`example-record.json`) |
 | `api/` | API Gateway config and curl examples |
+| `automation/` | StackSet template + commands to bootstrap spoke accounts |
 | `inventory_ui.html` | Optional region/account dashboard (set `BASE_URL`) |
 | `FULL_SETUP_IN_ORDER.md` | Step-by-step setup (Console) |
 | `COST_AND_STOP_RESOURCES.md` | Cost tips and tidy-up |
@@ -85,10 +86,13 @@ Management Account                    Spoke Accounts
 | GET | `/regions` | Regions in current snapshot |
 | GET | `/regions/{region}/accounts` | Accounts with data in that region |
 | GET | `/accounts` | List accounts with discovery data |
+| GET | `/accounts/{accountId}` | Flat list of records for that account |
 | GET | `/accounts/{accountId}/instances` | Instances + DBs; optional `?region=` |
 | GET | `/databases` | All rows (optional: `?engine=`, `?account_id=`) |
 
 Full REST API reference (request/response fields): [api/api-gateway-config.md](api/api-gateway-config.md)
+
+Spoke bootstrap automation: [automation/STACKSET_AUTOMATION.md](automation/STACKSET_AUTOMATION.md)
 
 ### Example Response
 
@@ -120,8 +124,8 @@ Full REST API reference (request/response fields): [api/api-gateway-config.md](a
 ## Prerequisites
 
 - AWS CLI configured
-- Management account + 1–2 member accounts
-- EC2 instances with SSM agent (managed instances)
+- **Hub** account (Lambda, S3, API) plus **one or more spoke account IDs** in `SPOKE_ACCOUNTS`, *or* the same account ID for a single-account / multi-region demo
+- EC2 instances with SSM agent (managed instances; **Fleet Manager Online**)
 - Python 3.11 (for Lambda)
 
 ---
@@ -159,4 +163,4 @@ Replace these placeholders before deployment:
 
 ## License
 
-MIT License — See [LICENSE](LICENSE) for details.
+Badge above is informational; redistribution is subject to the **Confidentiality Notice** at the top of this README and your organization’s rules. There is no separate `LICENSE` file in the repository.
