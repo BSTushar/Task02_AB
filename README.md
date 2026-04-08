@@ -71,6 +71,7 @@ Management Account                    Spoke Accounts
 | `lambda/` | Discovery handler and API handler |
 | `schema/` | Example discovery record shape (`example-record.json`) |
 | `api/` | API Gateway config and curl examples |
+| `automation/` | StackSet template + commands to bootstrap spoke accounts |
 | `inventory_ui.html` | Optional region/account dashboard (set `BASE_URL`) |
 | `FULL_SETUP_IN_ORDER.md` | Step-by-step setup (Console) |
 | `COST_AND_STOP_RESOURCES.md` | Cost tips and tidy-up |
@@ -90,6 +91,8 @@ Management Account                    Spoke Accounts
 | GET | `/databases` | All rows (optional: `?engine=`, `?account_id=`) |
 
 Full REST API reference (request/response fields): [api/api-gateway-config.md](api/api-gateway-config.md)
+
+Spoke bootstrap automation: [automation/STACKSET_AUTOMATION.md](automation/STACKSET_AUTOMATION.md)
 
 ### Example Response
 

@@ -2,122 +2,459 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>DB Discovery Inventory</title>
+  <title>Database Discovery — Inventory</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { background: radial-gradient(circle at top, #111827 0, #020617 40%, #020617 100%); }
+    :root {
+      color-scheme: dark;
+      /* “Butter” deceleration — landing motion feels expensive */
+      --ease-butter: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-butter-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+      --ease-smooth: var(--ease-butter);
+      --ease-soft: var(--ease-butter-in-out);
+      --dur-reveal: 1.25s;
+      --dur-stagger-step: 0.16s;
+    }
+    html { scroll-behavior: smooth; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translate3d(0, 12px, 0); }
+      to { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes revealCard {
+      from { opacity: 0; transform: translate3d(0, 20px, 0) scale(0.985); }
+      to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+    }
+    @keyframes revealRow {
+      from { opacity: 0; transform: translate3d(-10px, 0, 0); }
+      to { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.32); }
+      45% { box-shadow: 0 0 0 11px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+    }
+    @keyframes barGrow {
+      from { transform: scaleY(0); transform-origin: bottom; }
+      to { transform: scaleY(1); transform-origin: bottom; }
+    }
+    @keyframes ripple {
+      0% { transform: scale(1); opacity: 0.45; }
+      100% { transform: scale(2.7); opacity: 0; }
+    }
+    @keyframes scanLine { 0% { top: 0%; } 100% { top: 100%; } }
+    @keyframes dash { to { stroke-dashoffset: -20; } }
+    @keyframes nodeEntrance {
+      from { opacity: 0; transform: translate3d(0, 10px, 0) scale(0.96); }
+      to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+    }
+    @keyframes meshDrift {
+      0% { transform: translate3d(0, 0, 0) scale(1); }
+      100% { transform: translate3d(-2%, 1.5%, 0) scale(1.02); }
+    }
+    @keyframes titleShine {
+      0%, 100% { filter: brightness(1) saturate(1); }
+      50% { filter: brightness(1.07) saturate(1.05); }
+    }
+    @keyframes footerIn {
+      from { opacity: 0; transform: translate3d(0, 16px, 0); }
+      to { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+    .story-bg {
+      background: #0a0e1a;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .hero-mesh {
+      animation: meshDrift 36s var(--ease-butter-in-out) infinite alternate;
+      will-change: transform;
+    }
+    .gradient-title {
+      background: linear-gradient(135deg, #e2e8f0 30%, #10b981 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .kpi-num { display: inline-block; transform-origin: 50% 80%; }
+    .engine-card {
+      transition: transform 0.7s var(--ease-butter), box-shadow 0.7s var(--ease-butter), border-color 0.5s var(--ease-soft);
+      will-change: transform;
+    }
+    .engine-card:hover {
+      transform: translate3d(0, -6px, 0);
+      box-shadow: 0 24px 56px -28px rgba(0, 0, 0, 0.65);
+    }
+    select.story-select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-color: rgba(15, 23, 42, 0.95);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      accent-color: #10b981;
+      transition: border-color 0.6s var(--ease-butter), background-color 0.6s var(--ease-butter), color 0.6s var(--ease-butter), box-shadow 0.6s var(--ease-butter), transform 0.65s var(--ease-butter);
+    }
+    select.story-select:hover {
+      border-color: rgba(255, 255, 255, 0.28);
+      transform: translate3d(0, -2px, 0);
+      box-shadow: 0 14px 36px -12px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    select.story-select:active {
+      transform: translate3d(0, 0, 0);
+      transition-duration: 0.22s;
+    }
+    #refreshBtn {
+      transition: transform 0.65s var(--ease-butter), box-shadow 0.65s var(--ease-butter), border-color 0.55s var(--ease-butter), background-color 0.55s var(--ease-butter), color 0.55s var(--ease-butter);
+    }
+    #refreshBtn:hover {
+      transform: translate3d(0, -2px, 0) scale(1.02);
+      box-shadow: 0 16px 44px -14px rgba(16, 185, 129, 0.45);
+    }
+    #refreshBtn:active {
+      transform: translate3d(0, 0, 0) scale(0.985);
+      transition-duration: 0.18s;
+    }
+    select.story-select:focus {
+      outline: none;
+      border-color: rgba(16, 185, 129, 0.55);
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.22), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    details summary {
+      transition: color 0.45s var(--ease-butter);
+    }
+    .glass-surface {
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .table-row-interactive {
+      transition: background-color 0.65s var(--ease-butter), transform 0.65s var(--ease-butter);
+    }
+    .table-row-interactive:hover {
+      transform: translate3d(4px, 0, 0);
+    }
+    .footer-reveal {
+      animation: footerIn 1.2s var(--ease-butter) 0.6s both;
+    }
+    /* Native option list: Windows/Chrome often uses white popup unless forced */
+    select.story-select option,
+    select.story-select optgroup {
+      background-color: #0f172a !important;
+      color: #f8fafc !important;
+    }
+    select.story-select option:checked,
+    select.story-select option:hover {
+      background-color: #1e293b !important;
+      color: #ffffff !important;
+    }
+    .kpi-strip-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      min-height: 9.25rem;
+    }
+    .kpi-strip-label {
+      min-height: 2.5rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+    }
+    .kpi-strip-value {
+      min-height: 3.25rem;
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      width: 100%;
+      padding-top: 0.125rem;
+    }
+    .kpi-strip-sub {
+      min-height: 2.75rem;
+      margin-top: auto;
+      padding-top: 0.25rem;
+      width: 100%;
+      max-width: 18rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
   </style>
 </head>
-<body class="min-h-screen text-slate-100">
-  <div class="max-w-6xl mx-auto px-4 py-6">
-    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-      <div>
-        <h1 class="text-3xl font-semibold tracking-tight">Database Discovery Inventory</h1>
-        <p class="text-slate-300 mt-1 text-sm md:text-base">
-          Cross-account view of EC2 databases with region/account navigation.
+<body class="story-bg min-h-screen text-slate-100 m-0">
+  <div class="min-h-screen flex flex-col border-b border-white/[0.06]">
+    <main class="flex-1 w-full flex flex-col">
+    <!-- Hero (background full-bleed; content same width as rest of page) -->
+    <div class="relative pt-10 md:pt-12 pb-8 overflow-hidden border-b border-white/[0.06]">
+      <svg class="hero-mesh absolute inset-0 w-full h-full opacity-[0.18] pointer-events-none" viewBox="0 0 800 260" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <radialGradient id="glow1" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#10b981" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <ellipse cx="400" cy="130" rx="300" ry="90" fill="url(#glow1)"/>
+        <circle cx="120" cy="60" r="2" fill="#10b981"/>
+        <circle cx="680" cy="40" r="1.5" fill="#6366f1"/>
+        <circle cx="240" cy="190" r="1.5" fill="#10b981"/>
+        <circle cx="560" cy="170" r="2" fill="#6366f1"/>
+        <line x1="120" y1="60" x2="240" y2="190" stroke="#10b981" stroke-width="0.5" opacity="0.5"/>
+        <line x1="240" y1="190" x2="560" y2="170" stroke="#10b981" stroke-width="0.5" opacity="0.5"/>
+      </svg>
+
+      <div class="relative z-10 w-full max-w-6xl mx-auto px-6 md:px-8">
+        <div class="flex items-center gap-2.5 mb-3" style="animation: fadeInUp 1.35s var(--ease-butter) forwards;">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" style="animation: pulse 4.2s var(--ease-butter-in-out) infinite;"></span>
+          <span class="text-[11px] tracking-[0.2em] uppercase font-semibold text-emerald-400">Snapshot from API</span>
+        </div>
+        <h1 class="text-[clamp(1.375rem,5vw,2.5rem)] font-bold m-0 mb-2 gradient-title" style="animation: fadeInUp 1.5s var(--ease-butter) 0.2s both, titleShine 8s var(--ease-butter-in-out) 1.6s infinite;">Database Discovery</h1>
+        <p class="text-sm text-slate-300 m-0 max-w-2xl leading-relaxed" style="animation: fadeInUp 1.5s var(--ease-butter) 0.35s both;">
+          Cross-account EC2 inventory: MySQL, PostgreSQL, MongoDB — filtered by <strong class="text-white font-medium">region</strong> and <strong class="text-white font-medium">spoke account</strong>. Data is the last discovery write to S3; use <strong class="text-white font-medium">Reload</strong> after a new scan.
         </p>
-      </div>
-      <div class="flex items-center gap-2 text-xs text-slate-400">
-        <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-200">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          Live from API
-        </span>
-      </div>
-    </header>
 
-    <section class="bg-slate-900/70 backdrop-blur border border-slate-700/60 rounded-xl p-4 mb-4">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-        <div>
-          <label for="regionSelect" class="block text-xs font-medium text-slate-400 mb-1">Region</label>
-          <select id="regionSelect" class="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"></select>
-        </div>
-        <div>
-          <label for="accountSelect" class="block text-xs font-medium text-slate-400 mb-1">Account</label>
-          <select id="accountSelect" class="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"></select>
-        </div>
-        <div class="flex flex-col md:flex-row gap-2 md:justify-end">
-          <button id="refreshBtn" class="inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-500 text-slate-900 text-sm font-medium px-4 py-2 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-emerald-500">
-            Refresh
+        <details class="mt-4 text-sm text-slate-300 max-w-2xl" style="animation: fadeInUp 1.5s var(--ease-butter) 0.48s both;">
+          <summary class="cursor-pointer text-slate-200 hover:text-white select-none list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
+            <span class="w-1 h-4 rounded-sm bg-gradient-to-b from-emerald-500 to-indigo-500"></span>
+            How this page works
+          </summary>
+          <ol class="mt-3 pl-2 space-y-1.5 text-[13px] text-slate-300 border-l border-white/10 ml-1.5 pl-4">
+            <li><span class="text-white font-medium">Region</span> — only EC2 rows discovered in that region.</li>
+            <li><span class="text-white font-medium">Account</span> — dropdown lists accounts that have data in the selected region (not the whole org).</li>
+            <li><span class="text-white font-medium">Empty DB column</span> — probe ran; no supported engine found on that host.</li>
+          </ol>
+        </details>
+
+        <!-- Controls: same height, aligned center, consistent borders -->
+        <div class="flex flex-wrap items-center gap-3 mt-5" style="animation: fadeInUp 1.5s var(--ease-butter) 0.58s both;">
+          <div class="relative inline-flex items-center h-10 shrink-0">
+            <label class="sr-only" for="regionSelect">AWS region</label>
+            <select id="regionSelect" class="story-select h-10 min-w-[11rem] rounded-full pl-4 pr-9 text-[13px] leading-none cursor-pointer"></select>
+            <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] pointer-events-none leading-none">▼</span>
+          </div>
+          <div class="relative inline-flex items-center h-10 shrink-0">
+            <label class="sr-only" for="accountSelect">Account</label>
+            <select id="accountSelect" class="story-select h-10 min-w-[16.5rem] max-w-[min(100vw-2rem,22rem)] rounded-full pl-4 pr-9 text-[13px] leading-none cursor-pointer"></select>
+            <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] pointer-events-none leading-none">▼</span>
+          </div>
+          <button id="refreshBtn" type="button" class="inline-flex items-center justify-center h-10 rounded-full px-5 text-[13px] font-semibold leading-none cursor-pointer border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:text-emerald-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0e1a] shrink-0">
+            ↻ Reload from API
           </button>
+          <span id="statusBadge" class="text-xs text-slate-300 self-center max-w-md min-h-[1.25rem] flex items-center"></span>
         </div>
+        <div id="statusLine" class="mt-3 text-xs min-h-[2.5rem] text-slate-300 whitespace-pre-line max-w-3xl"></div>
       </div>
-      <div id="statusLine" class="mt-3 text-xs text-slate-400 h-4 flex items-center"></div>
-    </section>
+    </div>
 
-    <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-      <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-3">
-        <p class="text-xs text-slate-400">Instances</p>
-        <p id="summaryInstances" class="text-2xl font-semibold mt-1">–</p>
+    <!-- Single content column: KPI + all sections share exact same width as hero -->
+    <div class="w-full max-w-6xl mx-auto px-6 md:px-8">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-5 py-7 sm:py-8 border-b border-white/[0.06]">
+      <div class="kpi-strip-cell rounded-2xl border border-white/[0.09] bg-white/[0.03] px-5 py-7 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.55)] transition-[box-shadow,transform] duration-500 hover:shadow-[0_16px_48px_-24px_rgba(16,185,129,0.12)]" style="animation: fadeInUp 1.35s var(--ease-butter) 0.55s both;">
+        <div class="kpi-strip-label">
+          <span class="text-[11px] tracking-widest uppercase text-slate-400 leading-snug">EC2 instances</span>
+        </div>
+        <div class="kpi-strip-value">
+          <span id="summaryInstances" class="kpi-num text-[2.5rem] font-bold text-white leading-none tabular-nums tracking-tight">–</span>
+        </div>
+        <div id="summaryInstancesHint" class="kpi-strip-sub text-xs text-emerald-300/95 leading-snug">In this region + account</div>
       </div>
-      <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-3">
-        <p class="text-xs text-slate-400">Databases</p>
-        <p id="summaryDatabases" class="text-2xl font-semibold mt-1">–</p>
+      <div class="kpi-strip-cell rounded-2xl border border-white/[0.09] bg-white/[0.03] px-5 py-7 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.55)] transition-[box-shadow,transform] duration-500 hover:shadow-[0_16px_48px_-24px_rgba(99,102,241,0.12)]" style="animation: fadeInUp 1.35s var(--ease-butter) 0.72s both;">
+        <div class="kpi-strip-label">
+          <span class="text-[11px] tracking-widest uppercase text-slate-400 leading-snug">DB detections</span>
+        </div>
+        <div class="kpi-strip-value">
+          <span id="summaryDatabases" class="kpi-num text-[2.5rem] font-bold text-white leading-none tabular-nums tracking-tight">–</span>
+        </div>
+        <div id="summaryDbHint" class="kpi-strip-sub text-xs text-indigo-300/95 leading-snug">Total engine rows across instances</div>
       </div>
-      <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-3">
-        <p class="text-xs text-slate-400">Engines</p>
-        <p id="summaryEngines" class="text-sm mt-1 text-slate-200">–</p>
+      <div class="kpi-strip-cell rounded-2xl border border-white/[0.09] bg-white/[0.03] px-5 py-7 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.55)] transition-[box-shadow,transform] duration-500 hover:shadow-[0_16px_48px_-24px_rgba(16,185,129,0.1)]" style="animation: fadeInUp 1.35s var(--ease-butter) 0.88s both;">
+        <div class="kpi-strip-label">
+          <span class="text-[11px] tracking-widest uppercase text-slate-400 leading-snug">Distinct engines</span>
+        </div>
+        <div class="kpi-strip-value">
+          <span id="summaryEngineCount" class="kpi-num text-[2.5rem] font-bold leading-none tabular-nums tracking-tight bg-gradient-to-r from-emerald-300 to-indigo-300 bg-clip-text text-transparent">–</span>
+        </div>
+        <div id="summaryEngines" class="kpi-strip-sub text-xs text-slate-300 leading-snug break-words text-center" title="">–</div>
       </div>
-    </section>
+      </div>
 
-    <section class="bg-slate-900/70 backdrop-blur border border-slate-700/60 rounded-xl p-4 mb-4">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-sm font-medium text-slate-200">Databases by Engine (selected region/account)</h2>
-      </div>
-      <canvas id="engineChart" class="w-full h-48"></canvas>
-    </section>
+      <!-- Engine cards (storytelling style) -->
+      <section class="py-8 border-b border-white/[0.06]">
+        <div class="flex items-center gap-2 mb-6">
+          <span class="w-[3px] h-[18px] rounded-sm bg-gradient-to-b from-emerald-500 to-indigo-500"></span>
+          <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Databases by engine</h2>
+        </div>
+        <p class="text-[11px] text-slate-300 -mt-4 mb-6 max-w-xl">Same filter as the table. Bars scale to the largest count in this view.</p>
+        <div id="engineCardsEmpty" class="glass-surface text-center text-sm text-slate-200 py-12 border border-dashed border-white/15 rounded-2xl bg-white/[0.03]">
+          No engines in this region + account — try another spoke or region (e.g. where your DB host runs).
+        </div>
+        <div id="engineCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 hidden"></div>
+      </section>
 
-    <section class="bg-slate-900/70 backdrop-blur border border-slate-700/60 rounded-xl overflow-hidden">
-      <div class="border-b border-slate-800/80 px-4 py-2.5 flex items-center justify-between">
-        <h2 class="text-sm font-medium text-slate-200">Instances & Databases</h2>
-        <p id="tableCaption" class="text-[11px] text-slate-400"></p>
+      <!-- Topology -->
+      <section class="py-8 border-b border-white/[0.06]">
+        <div class="flex items-center gap-2 mb-5">
+          <span class="w-[3px] h-[18px] rounded-sm bg-gradient-to-b from-indigo-500 to-emerald-500"></span>
+          <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Infrastructure topology</h2>
+        </div>
+        <p class="text-[11px] text-slate-300 -mt-3 mb-4 max-w-2xl">Schematic view of the first instance that has databases (otherwise the first instance in the table). Lines are illustrative.</p>
+        <div class="relative rounded-2xl overflow-hidden glass-surface bg-white/[0.03] border border-white/[0.06] shadow-[0_24px_80px_-48px_rgba(0,0,0,0.55)]">
+          <div class="absolute left-0 right-0 h-px pointer-events-none z-[1]" style="background: linear-gradient(90deg, transparent, rgba(16,185,129,0.22), transparent); animation: scanLine 8.5s linear infinite;"></div>
+          <div id="topologyEmpty" class="py-16 text-center text-sm text-slate-200">Select a region and account with instances to show a map.</div>
+          <svg id="topologySvg" class="w-full hidden min-h-[280px]" viewBox="0 0 600 300" style="display:block;">
+            <defs>
+              <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </marker>
+            </defs>
+            <line x1="0" y1="100" x2="600" y2="100" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            <line x1="0" y1="200" x2="600" y2="200" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            <rect x="40" y="30" width="520" height="240" rx="16" fill="none" stroke="rgba(255,165,0,0.12)" stroke-width="1" stroke-dasharray="6 4"/>
+            <text id="topoRegionText" x="56" y="52" fill="rgba(255,165,0,0.45)" font-size="10" font-family="ui-monospace, monospace" letter-spacing="1">AWS —</text>
+            <rect x="80" y="65" width="440" height="185" rx="10" fill="none" stroke="rgba(99,102,241,0.15)" stroke-width="1" stroke-dasharray="4 3"/>
+            <text x="94" y="82" fill="rgba(99,102,241,0.4)" font-size="9" font-family="ui-monospace, monospace">VPC (scoping)</text>
+            <g id="topoEdges"></g>
+            <g id="topoEc2" style="animation: nodeEntrance 1.45s var(--ease-butter) both;">
+              <rect x="158" y="118" width="124" height="68" rx="10" fill="rgba(16,185,129,0.08)" stroke="rgba(16,185,129,0.4)" stroke-width="1"/>
+              <circle cx="182" cy="132" r="4" fill="#10b981" class="pulse-ring" style="animation: pulse 4.2s var(--ease-butter-in-out) infinite;"/>
+              <circle cx="182" cy="132" r="8" fill="none" stroke="#10b981" stroke-width="0.5" style="animation: ripple 3.8s var(--ease-butter-in-out) infinite;"/>
+              <text x="220" y="143" fill="#10b981" font-size="11" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">EC2</text>
+              <text id="topoEc2Id" x="220" y="160" fill="#94a3b8" font-size="8.5" text-anchor="middle" font-family="ui-monospace, monospace">—</text>
+              <text id="topoEc2Meta" x="220" y="176" fill="#64748b" font-size="9" text-anchor="middle">—</text>
+            </g>
+            <g id="topoDbNodes"></g>
+            <text id="topoAccountText" x="300" y="288" fill="rgba(255,255,255,0.15)" font-size="10" text-anchor="middle" font-family="ui-monospace, monospace" letter-spacing="1">Account —</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- Table -->
+      <section class="py-8 pb-16">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+          <div class="flex items-center gap-2">
+            <span class="w-[3px] h-[18px] rounded-sm bg-gradient-to-b from-emerald-500 to-indigo-500"></span>
+            <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Instances &amp; databases</h2>
+          </div>
+          <p id="tableCaption" class="text-[11px] text-slate-300 m-0"></p>
+        </div>
+
+        <div class="rounded-xl overflow-hidden border border-white/[0.06] bg-white/[0.03] glass-surface shadow-[0_20px_64px_-40px_rgba(0,0,0,0.5)]">
+          <div class="hidden md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,2fr)_minmax(0,0.9fr)] gap-0 text-[10px] tracking-widest uppercase text-slate-400 border-b border-white/[0.06]">
+            <div class="px-4 py-2.5">Instance</div>
+            <div class="px-4 py-2.5">Type</div>
+            <div class="px-4 py-2.5">Tags</div>
+            <div class="px-4 py-2.5">Detected DBs</div>
+            <div class="px-4 py-2.5">Status</div>
+          </div>
+          <div id="instancesGrid" class="divide-y divide-white/[0.06]"></div>
+        </div>
+        <div id="emptyState" class="hidden mt-4 text-center text-sm text-slate-200 px-4 py-8 border border-dashed border-white/15 rounded-xl bg-white/[0.02]">
+          No data for this selection. Try another region/account or re-run discovery.
+        </div>
+      </section>
+    </div>
+    </main>
+
+    <footer class="footer-reveal border-t border-white/[0.08] bg-[#080c14] shrink-0">
+      <div class="max-w-6xl mx-auto px-6 md:px-8 py-8 text-center">
+        <p class="text-sm text-slate-400 m-0 tracking-wide">Tushar Bapu Shashikumar</p>
       </div>
-      <div class="overflow-x-auto">
-        <table class="min-w-full text-sm">
-          <thead class="bg-slate-900">
-            <tr>
-              <th class="px-4 py-2 text-left font-semibold text-slate-400 border-b border-slate-800">Instance</th>
-              <th class="px-4 py-2 text-left font-semibold text-slate-400 border-b border-slate-800">Type</th>
-              <th class="px-4 py-2 text-left font-semibold text-slate-400 border-b border-slate-800">Tags</th>
-              <th class="px-4 py-2 text-left font-semibold text-slate-400 border-b border-slate-800">Databases</th>
-              <th class="px-4 py-2 text-left font-semibold text-slate-400 border-b border-slate-800">Status</th>
-            </tr>
-          </thead>
-          <tbody id="instancesBody" class="divide-y divide-slate-800 bg-slate-900/40"></tbody>
-        </table>
-      </div>
-      <div id="emptyState" class="hidden px-4 py-6 text-center text-sm text-slate-400">
-        No data for this selection. Try another region/account or re-run discovery.
-      </div>
-    </section>
+    </footer>
   </div>
 
   <script>
-    // Set to your API Gateway invoke URL including stage (…/prod) — no trailing slash.
     const BASE_URL = "https://o9v2qz6dq2.execute-api.ap-south-1.amazonaws.com/prod";
+
+    const ACCOUNT_LABELS = {
+      "987213268214": "DEMOR1",
+      "349865003021": "DEMOR2",
+      "599657398371": "DEMOR3",
+    };
+    function accountOptionLabel(id) {
+      const nick = ACCOUNT_LABELS[id];
+      return nick ? `${id} — ${nick}` : id;
+    }
+
+    const ENGINE_STYLES = {
+      mysql: { label: "mysql", border: "rgba(16,185,129,0.15)", bg: "rgba(16,185,129,0.04)", accent: "#10b981", bar: "linear-gradient(180deg,#10b981,#065f46)", chip: "rgba(16,185,129,0.15)" },
+      postgresql: { label: "postgresql", border: "rgba(99,102,241,0.15)", bg: "rgba(99,102,241,0.04)", accent: "#818cf8", bar: "linear-gradient(180deg,#818cf8,#312e81)", chip: "rgba(99,102,241,0.15)" },
+      postgres: { label: "postgresql", border: "rgba(99,102,241,0.15)", bg: "rgba(99,102,241,0.04)", accent: "#818cf8", bar: "linear-gradient(180deg,#818cf8,#312e81)", chip: "rgba(99,102,241,0.15)" },
+      mongodb: { label: "mongodb", border: "rgba(245,158,11,0.2)", bg: "rgba(245,158,11,0.06)", accent: "#fbbf24", bar: "linear-gradient(180deg,#fbbf24,#92400e)", chip: "rgba(245,158,11,0.15)" },
+    };
+    function styleForEngine(name) {
+      const k = (name || "").toLowerCase();
+      return ENGINE_STYLES[k] || {
+        label: name || "engine",
+        border: "rgba(148,163,184,0.2)",
+        bg: "rgba(148,163,184,0.06)",
+        accent: "#94a3b8",
+        bar: "linear-gradient(180deg,#94a3b8,#475569)",
+        chip: "rgba(148,163,184,0.15)",
+      };
+    }
+
+    function edgeStrokeForEngine(engine) {
+      const k = (engine || "").toLowerCase();
+      if (k === "mysql") return "rgba(16,185,129,0.28)";
+      if (k === "postgresql" || k === "postgres") return "rgba(99,102,241,0.28)";
+      if (k === "mongodb") return "rgba(245,158,11,0.28)";
+      return "rgba(148,163,184,0.28)";
+    }
 
     const regionSelect = document.getElementById("regionSelect");
     const accountSelect = document.getElementById("accountSelect");
     const refreshBtn = document.getElementById("refreshBtn");
     const statusLine = document.getElementById("statusLine");
-    const tbody = document.getElementById("instancesBody");
+    const statusBadge = document.getElementById("statusBadge");
+    const instancesGrid = document.getElementById("instancesGrid");
     const emptyState = document.getElementById("emptyState");
     const summaryInstances = document.getElementById("summaryInstances");
     const summaryDatabases = document.getElementById("summaryDatabases");
+    const summaryEngineCount = document.getElementById("summaryEngineCount");
     const summaryEngines = document.getElementById("summaryEngines");
     const tableCaption = document.getElementById("tableCaption");
-
-    let engineChart;
+    const engineCards = document.getElementById("engineCards");
+    const engineCardsEmpty = document.getElementById("engineCardsEmpty");
+    const topologySvg = document.getElementById("topologySvg");
+    const topologyEmpty = document.getElementById("topologyEmpty");
 
     function setStatus(msg, type = "info") {
-      const colors = {
-        info: "text-slate-400",
-        success: "text-emerald-400",
-        error: "text-red-400"
-      };
-      statusLine.className = "mt-3 text-xs h-4 flex items-center " + (colors[type] || colors.info);
+      const colors = { info: "text-slate-200", success: "text-emerald-300", error: "text-red-400" };
+      statusLine.className = "mt-3 text-xs min-h-[2.5rem] whitespace-pre-line max-w-3xl " + (colors[type] || colors.info);
       statusLine.textContent = msg || "";
+    }
+
+    const EASE_BUTTER = "cubic-bezier(0.16, 1, 0.3, 1)";
+    function motionOk() {
+      return typeof matchMedia === "function" && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+    function butterPop(el, delay = 0) {
+      if (!el || typeof el.animate !== "function" || !motionOk()) return;
+      el.animate(
+        [
+          { opacity: 0.82, transform: "scale(0.94) translate3d(0, 5px, 0)" },
+          { opacity: 1, transform: "scale(1) translate3d(0, 0, 0)" },
+        ],
+        { duration: 680, delay, easing: EASE_BUTTER, fill: "both" }
+      );
+    }
+    function setBadge(text, type = "muted") {
+      const map = { ok: "text-emerald-300", warn: "text-amber-300", err: "text-red-400", muted: "text-slate-300" };
+      statusBadge.className = "text-xs self-center max-w-md min-h-[1.25rem] flex items-center " + (map[type] || map.muted);
+      statusBadge.textContent = text || "";
+      if (typeof statusBadge.animate === "function" && motionOk()) {
+        statusBadge.animate(
+          [{ opacity: 0.35, transform: "translate3d(8px, 0, 0)" }, { opacity: 1, transform: "translate3d(0, 0, 0)" }],
+          { duration: 520, easing: EASE_BUTTER }
+        );
+      }
     }
 
     async function fetchJson(url) {
@@ -129,8 +466,203 @@
       return res.json();
     }
 
+    function renderEngineCards(engineCounts) {
+      const entries = Object.entries(engineCounts).filter(([, n]) => n > 0);
+      const max = Math.max(...entries.map(([, n]) => n), 1);
+      if (!entries.length) {
+        engineCards.innerHTML = "";
+        engineCards.classList.add("hidden");
+        engineCardsEmpty.classList.remove("hidden");
+        return;
+      }
+      engineCardsEmpty.classList.add("hidden");
+      engineCards.classList.remove("hidden");
+      engineCards.innerHTML = entries.map(([engine, count], idx) => {
+        const st = styleForEngine(engine);
+        const hPrimary = 40 + Math.round((count / max) * 72);
+        const hGhost = 28 + Math.round((count / max) * 24);
+        return `
+          <div class="engine-card rounded-2xl p-6 border" style="background:${st.bg};border-color:${st.border};animation: revealCard 1.28s var(--ease-butter) ${0.12 * idx}s both;">
+            <div class="flex justify-between items-start mb-5">
+              <div>
+                <div class="text-base font-bold" style="color:${st.accent}">${st.label}</div>
+                <div class="text-xs text-slate-400 mt-0.5">${count} detection${count !== 1 ? "s" : ""} in view</div>
+              </div>
+              <div class="rounded-lg px-3 py-1 text-[13px] font-semibold border" style="background:${st.chip};border-color:${st.border};color:${st.accent}">${count} DB</div>
+            </div>
+            <div class="relative h-[120px] flex items-end gap-2">
+              <div class="flex-1 flex flex-col items-center gap-1.5">
+                <div class="w-full rounded-t-md shadow-[0_-4px_20px_rgba(0,0,0,0.2)]" style="height:${hPrimary}px;background:${st.bar};animation: barGrow 1.5s var(--ease-butter) ${0.14 * idx + 0.38}s both;"></div>
+                <span class="text-[11px] text-slate-400">${count} in chart</span>
+              </div>
+              <div class="flex-1 flex flex-col items-center gap-1.5">
+                <div class="w-full rounded-t-md border border-dashed border-white/10 bg-white/[0.04]" style="height:${hGhost}px;animation: barGrow 1.32s var(--ease-butter) ${0.14 * idx + 0.52}s both;"></div>
+                <span class="text-[11px] text-slate-400">scale</span>
+              </div>
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    function tagName(tags) {
+      if (!tags || typeof tags !== "object") return null;
+      return tags.Name || tags.name || null;
+    }
+
+    function renderTopology(instances, region, account) {
+      if (!instances || !instances.length) {
+        topologySvg.classList.add("hidden");
+        topologyEmpty.classList.remove("hidden");
+        return;
+      }
+      topologyEmpty.classList.add("hidden");
+      topologySvg.classList.remove("hidden");
+
+      const primary = instances.find(i => (i.databases || []).length) || instances[0];
+      const dbs = primary.databases || [];
+      const meta = [primary.instance_type || "type ?", tagName(primary.tags) || ""].filter(Boolean).join(" · ");
+
+      document.getElementById("topoRegionText").textContent = `AWS ${region}`;
+      document.getElementById("topoAccountText").textContent = `Account ${account}`;
+      document.getElementById("topoEc2Id").textContent = primary.instance_id || "—";
+      document.getElementById("topoEc2Meta").textContent = meta || "—";
+
+      const edges = document.getElementById("topoEdges");
+      const nodes = document.getElementById("topoDbNodes");
+      edges.innerHTML = "";
+      nodes.innerHTML = "";
+
+      if (!dbs.length) {
+        return;
+      }
+
+      const n = dbs.length;
+      const dbNodeRectH = 48;
+      const dbNodeGap = 16;
+      const dbRowStep = dbNodeRectH + dbNodeGap;
+      const baseY = 132;
+      const startY = baseY - ((n - 1) * dbRowStep) / 2;
+      dbs.forEach((db, i) => {
+        const y = startY + i * dbRowStep;
+        const st = styleForEngine(db.engine);
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        const ec2AnchorY = 142 + Math.min(i * 4, 12);
+        path.setAttribute("d", `M282 ${ec2AnchorY} Q322 ${y - 4} 378 ${y + 2}`);
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", edgeStrokeForEngine(db.engine));
+        path.setAttribute("stroke-width", "1.5");
+        path.setAttribute("stroke-dasharray", "5 5");
+        path.setAttribute("marker-end", "url(#arr2)");
+        path.style.animation = `dash ${5.6 + i * 0.7}s linear infinite`;
+        edges.appendChild(path);
+
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("style", `animation: nodeEntrance 1.35s ${EASE_BUTTER} ${0.22 + i * 0.17}s both;`);
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", "378");
+        rect.setAttribute("y", String(y - 22));
+        rect.setAttribute("width", "110");
+        rect.setAttribute("height", "48");
+        rect.setAttribute("rx", "10");
+        rect.setAttribute("fill", st.bg.replace("0.04)", "0.08)"));
+        rect.setAttribute("stroke", st.border);
+        rect.setAttribute("stroke-width", "1");
+        g.appendChild(rect);
+        const t1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t1.setAttribute("x", "433");
+        t1.setAttribute("y", String(y - 6));
+        t1.setAttribute("fill", st.accent);
+        t1.setAttribute("font-size", "11");
+        t1.setAttribute("font-weight", "700");
+        t1.setAttribute("text-anchor", "middle");
+        t1.textContent = st.label;
+        g.appendChild(t1);
+        const t2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t2.setAttribute("x", "433");
+        t2.setAttribute("y", String(y + 8));
+        t2.setAttribute("fill", "#64748b");
+        t2.setAttribute("font-size", "9");
+        t2.setAttribute("text-anchor", "middle");
+        t2.textContent = `${db.version || "?"} · ${db.status || "unknown"}`;
+        g.appendChild(t2);
+        nodes.appendChild(g);
+      });
+    }
+
+    function computeSummaries(instances, region, account) {
+      const engineCounts = {};
+      let dbCount = 0;
+      let successN = 0;
+      instances.forEach(inst => {
+        if ((inst.discovery_status || "") === "success") successN++;
+        const dbs = inst.databases || [];
+        dbCount += dbs.length;
+        dbs.forEach(d => {
+          if (!d.engine) return;
+          const key = d.engine.toLowerCase();
+          engineCounts[key] = (engineCounts[key] || 0) + 1;
+        });
+      });
+      summaryInstances.textContent = instances.length.toString();
+      summaryDatabases.textContent = dbCount.toString();
+      const distinct = Object.keys(engineCounts).length;
+      summaryEngineCount.textContent = distinct ? String(distinct) : "0";
+      butterPop(summaryInstances, 0);
+      butterPop(summaryDatabases, 45);
+      butterPop(summaryEngineCount, 90);
+      const engineLine = distinct ? Object.keys(engineCounts).map(k => styleForEngine(k).label).join(" · ") : "—";
+      summaryEngines.textContent = engineLine;
+      summaryEngines.title = distinct ? engineLine : "";
+
+      document.getElementById("summaryInstancesHint").textContent =
+        instances.length ? `${successN}/${instances.length} discovery success` : "In this region + account";
+
+      renderEngineCards(engineCounts);
+      renderTopology(instances, region, account);
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function renderInstanceRows(instances) {
+      instancesGrid.innerHTML = instances.map((inst, rowIdx) => {
+        const dbs = inst.databases || [];
+        const badges = dbs.length
+          ? dbs.map(d => {
+              const st = styleForEngine(d.engine);
+              return `<span class="inline-block rounded-md px-2 py-0.5 text-[11px] mr-1 mb-1 border" style="background:${st.chip};border-color:${st.border};color:${st.accent}">${escapeHtml(d.engine)} ${escapeHtml(String(d.version || ""))}</span>`;
+            }).join("")
+          : `<span class="text-slate-500 text-xs">No DB detected</span>`;
+        const overallStatus = inst.discovery_status || "unknown";
+        const stColor = overallStatus === "success" ? "text-emerald-400" : overallStatus === "failed" ? "text-red-400" : "text-slate-400";
+        const delay = 0.1 * rowIdx;
+        return `
+          <div class="table-row-interactive md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,2fr)_minmax(0,0.9fr)] gap-0 border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.06]" style="animation: revealRow 1.05s var(--ease-butter) ${delay}s both;">
+            <div class="px-4 py-3.5 text-xs font-mono text-slate-400 flex items-center gap-2 md:border-0 border-b border-white/[0.04]">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" style="animation: pulse 4.2s var(--ease-butter-in-out) infinite;"></span>
+              ${escapeHtml(inst.instance_id || "—")}
+            </div>
+            <div class="px-4 py-3.5 text-xs text-slate-200 md:border-0 border-b border-white/[0.04]">
+              <span class="inline-block rounded-md px-2 py-0.5 text-[11px] border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">${escapeHtml(inst.instance_type || "unknown")}</span>
+            </div>
+            <div class="px-4 py-3.5 text-[11px] text-slate-500 font-mono break-all md:border-0 border-b border-white/[0.04]">${escapeHtml(formatTags(inst.tags))}</div>
+            <div class="px-4 py-3.5 text-xs md:border-0 border-b border-white/[0.04]">${badges}</div>
+            <div class="px-4 py-3.5 text-xs font-semibold ${stColor}">${escapeHtml(overallStatus)}</div>
+          </div>`;
+      }).join("");
+    }
+
+    function formatTags(tags) {
+      if (!tags || typeof tags !== "object") return "–";
+      const entries = Object.entries(tags);
+      if (!entries.length) return "–";
+      return entries.map(([k, v]) => `${k}=${v}`).join(", ");
+    }
+
     async function loadRegions() {
-      setStatus("Loading regions...");
+      setBadge("Loading regions…", "warn");
+      setStatus("Fetching /regions from API.");
       try {
         const data = await fetchJson(`${BASE_URL}/regions`);
         const regions = data.regions || [];
@@ -142,164 +674,94 @@
           regionSelect.appendChild(opt);
         });
         if (!regions.length) {
-          setStatus("No regions found in data.", "info");
+          setStatus("No regions in inventory.", "info");
+          setBadge("No data", "err");
           return;
         }
         regionSelect.value = regions[0];
         await loadAccounts();
-        setStatus("Regions loaded.", "success");
+        setBadge("✓ API ready", "ok");
+        setStatus(`Regions loaded (${regions.length}). Pick account or change region.`, "success");
       } catch (e) {
         console.error(e);
         setStatus("Failed to load regions.", "error");
+        setBadge("API error", "err");
       }
     }
 
     async function loadAccounts() {
       const region = regionSelect.value;
       if (!region) return;
-      setStatus(`Loading accounts for ${region}...`);
+      setBadge("Loading accounts…", "warn");
+      setStatus(`Loading accounts for ${region}…`);
       try {
-        const data = await fetchJson(`${BASE_URL}/regions/${encodeURIComponent(region)}/accounts`);
+        const data = await fetchJson(`${BASE_URL}/accounts?region=${encodeURIComponent(region)}`);
         const accounts = data.accounts || [];
         accountSelect.innerHTML = "";
         accounts.forEach(a => {
           const opt = document.createElement("option");
           opt.value = a;
-          opt.textContent = a;
+          opt.textContent = accountOptionLabel(a);
           accountSelect.appendChild(opt);
         });
         if (!accounts.length) {
-          tbody.innerHTML = "";
+          instancesGrid.innerHTML = "";
           emptyState.classList.remove("hidden");
           summaryInstances.textContent = "0";
           summaryDatabases.textContent = "0";
+          summaryEngineCount.textContent = "0";
           summaryEngines.textContent = "–";
-          tableCaption.textContent = `Region ${region}, no accounts with data`;
-          setStatus("No accounts with data.", "info");
-          updateEngineChart([]);
+          summaryEngines.title = "";
+          tableCaption.textContent = `Region ${region} — no accounts with data`;
+          setStatus("No accounts with inventory in this region.", "info");
+          setBadge("No accounts", "muted");
+          computeSummaries([], region, "");
           return;
         }
         accountSelect.value = accounts[0];
         await loadInstances();
-        setStatus("Accounts loaded.", "success");
+        setBadge("✓ Accounts loaded", "ok");
+        setStatus(`${accounts.length} account(s) in ${region}. Showing first — switch pill above to compare.`, "success");
       } catch (e) {
         console.error(e);
         setStatus("Failed to load accounts.", "error");
+        setBadge("API error", "err");
       }
-    }
-
-    function formatTags(tags) {
-      if (!tags || typeof tags !== "object") return "–";
-      const entries = Object.entries(tags);
-      if (!entries.length) return "–";
-      return entries.map(([k, v]) => `${k}=${v}`).join(", ");
-    }
-
-    function computeSummaries(instances) {
-      const engineCounts = {};
-      let dbCount = 0;
-      instances.forEach(inst => {
-        const dbs = inst.databases || [];
-        dbCount += dbs.length;
-        dbs.forEach(d => {
-          if (!d.engine) return;
-          engineCounts[d.engine] = (engineCounts[d.engine] || 0) + 1;
-        });
-      });
-      summaryInstances.textContent = instances.length.toString();
-      summaryDatabases.textContent = dbCount.toString();
-      summaryEngines.textContent = Object.keys(engineCounts).length
-        ? Object.keys(engineCounts).join(", ")
-        : "–";
-      updateEngineChart(engineCounts);
-    }
-
-    function updateEngineChart(engineCounts) {
-      const ctx = document.getElementById("engineChart").getContext("2d");
-      const labels = Object.keys(engineCounts);
-      const data = labels.map(l => engineCounts[l]);
-      if (engineChart) {
-        engineChart.data.labels = labels;
-        engineChart.data.datasets[0].data = data;
-        engineChart.update();
-        return;
-      }
-      engineChart = new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels,
-          datasets: [{
-            label: "Databases",
-            data,
-            backgroundColor: "rgba(16, 185, 129, 0.6)",
-            borderColor: "rgb(16, 185, 129)",
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: { precision: 0 }
-            }
-          },
-          plugins: {
-            legend: { display: false }
-          }
-        }
-      });
     }
 
     async function loadInstances() {
       const region = regionSelect.value;
       const account = accountSelect.value;
       if (!region || !account) return;
-      setStatus(`Loading instances for ${account} in ${region}...`);
+      setBadge("Loading instances…", "warn");
+      setStatus(`Loading instances for ${account}…`);
       try {
         const url = `${BASE_URL}/accounts/${encodeURIComponent(account)}/instances?region=${encodeURIComponent(region)}`;
         const data = await fetchJson(url);
         const instances = data.instances || [];
-        tbody.innerHTML = "";
+        instancesGrid.innerHTML = "";
         if (!instances.length) {
           emptyState.classList.remove("hidden");
-          computeSummaries([]);
-          tableCaption.textContent = `Region ${region}, account ${account}: 0 instances`;
-          setStatus("No instances for this selection.", "info");
+          computeSummaries([], region, account);
+          tableCaption.textContent = `Region ${region} · account ${account} · 0 instances`;
+          setStatus("No EC2 rows for this pair.\nIf unexpected, confirm discovery ran in this region.", "info");
+          setBadge("No instances", "muted");
           return;
         }
         emptyState.classList.add("hidden");
-        instances.forEach(inst => {
-          const tr = document.createElement("tr");
-          const dbs = inst.databases || [];
-          const dbLabel = dbs.length
-            ? dbs.map(d => `${d.engine} ${d.version} (${d.status})`).join("; ")
-            : "No known DBs";
-          const overallStatus = inst.discovery_status || "unknown";
-          const statusColor = overallStatus === "success"
-            ? "text-emerald-400"
-            : overallStatus === "failed"
-            ? "text-red-400"
-            : "text-slate-300";
-          tr.innerHTML = `
-            <td class="px-4 py-2 align-top text-slate-100 font-mono text-xs">${inst.instance_id}</td>
-            <td class="px-4 py-2 align-top text-slate-200">${inst.instance_type || "unknown"}</td>
-            <td class="px-4 py-2 align-top text-slate-300 text-xs">${formatTags(inst.tags)}</td>
-            <td class="px-4 py-2 align-top text-slate-200 text-xs">${dbLabel}</td>
-            <td class="px-4 py-2 align-top text-xs ${statusColor}">${overallStatus}</td>
-          `;
-          tbody.appendChild(tr);
-        });
-        computeSummaries(instances);
-        tableCaption.textContent = `Region ${region}, account ${account}: ${instances.length} instance(s)`;
-        setStatus("Instances loaded.", "success");
+        renderInstanceRows(instances);
+        computeSummaries(instances, region, account);
+        tableCaption.textContent = `Region ${region} · account ${account} · ${instances.length} instance(s)`;
+        setStatus(`Loaded ${instances.length} instance(s). Engine cards and topology match this filter.`, "success");
+        setBadge("✓ In sync", "ok");
       } catch (e) {
         console.error(e);
-        tbody.innerHTML = "";
+        instancesGrid.innerHTML = "";
         emptyState.classList.remove("hidden");
-        computeSummaries([]);
+        computeSummaries([], region, account);
         tableCaption.textContent = "";
         setStatus("Failed to load instances.", "error");
+        setBadge("API error", "err");
       }
     }
 
@@ -313,4 +775,3 @@
   </script>
 </body>
 </html>
-

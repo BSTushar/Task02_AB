@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Task_02 spoke bootstrap for cross-account DB discovery.
+  Creates DBDiscoverySpokeRole, EC2 SSM role/profile, and DBDiscovery SSM document.
+
+Parameters:
+  ManagementAccountId:
+    Type: String
+    Description: 12-digit management (hub) AWS account ID
+    AllowedPattern: "^[0-9]{12}$"
+  BucketName:
+    Type: String
+    Description: S3 bucket that stores ssm/discovery_python.py
+  SpokeRoleName:
+    Type: String
+    Default: DBDiscoverySpokeRole
+  Ec2RoleName:
+    Type: String
+    Default: EC2-SSM-Discovery-Role
+  Ec2InstanceProfileName:
+    Type: String
+    Default: EC2-SSM-Discovery-InstanceProfile
+  SsmDocumentName:
+    Type: String
+    Default: DBDiscovery
+  ScriptS3Key:
+    Type: String
+    Default: ssm/discovery_python.py
+  PrimaryRegionForIam:
+    Type: String
+    Description: >
+      IAM roles + instance profile are global; create them only in this region so
+      multi-region StackSet does not fail with "already exists". Use the same value
+      you pick first in StackSet region list (e.g. ap-south-1).
+    Default: ap-south-1
+
+Conditions:
+  CreateIamResources: !Equals [!Ref AWS::Region, !Ref PrimaryRegionForIam]
+
+Resources:
+  DBDiscoverySpokeRole:
+    Type: AWS::IAM::Role
+    Condition: CreateIamResources
+    Properties:
+      RoleName: !Ref SpokeRoleName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${ManagementAccountId}:root"
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DBDiscoverySpokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: EC2Describe
+                Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                Resource: "*"
+              - Sid: SSMReadAndExecute
+                Effect: Allow
+                Action:
+                  - ssm:DescribeInstanceInformation
+                  - ssm:SendCommand
+                  - ssm:GetCommandInvocation
+                  - ssm:ListCommands
+                Resource: "*"
+              - Sid: SSMDocumentRead
+                Effect: Allow
+                Action:
+                  - ssm:DescribeDocument
+                  - ssm:GetDocument
+                Resource: !Sub "arn:aws:ssm:*:*:document/${SsmDocumentName}"
+
+  EC2SSMDiscoveryRole:
+    Type: AWS::IAM::Role
+    Condition: CreateIamResources
+    Properties:
+      RoleName: !Ref Ec2RoleName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: ReadDiscoveryScriptFromS3
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadScript
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${BucketName}/ssm/*"
+
+  EC2SSMDiscoveryInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Condition: CreateIamResources
+    Properties:
+      InstanceProfileName: !Ref Ec2InstanceProfileName
+      Roles:
+        - !Ref EC2SSMDiscoveryRole
+
+  DBDiscoveryDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      Name: !Ref SsmDocumentName
+      DocumentType: Command
+      DocumentFormat: YAML
+      Content:
+        schemaVersion: "2.2"
+        description: Run DB discovery script from central S3 bucket
+        mainSteps:
+          - action: aws:runShellScript
+            name: runDiscovery
+            inputs:
+              runCommand:
+                - set -e
+                - mkdir -p /tmp/db-discovery
+                # !Sub required: raw ${BucketName} is treated as empty SSM doc placeholder, not CFN Ref
+                - !Sub "aws s3 cp s3://${BucketName}/${ScriptS3Key} /tmp/db-discovery/discovery_python.py"
+                - chmod +x /tmp/db-discovery/discovery_python.py
+                - python3 /tmp/db-discovery/discovery_python.py
+
+Outputs:
+  SpokeRoleArn:
+    Condition: CreateIamResources
+    Value: !GetAtt DBDiscoverySpokeRole.Arn
+  EC2RoleNameOut:
+    Condition: CreateIamResources
+    Value: !Ref EC2SSMDiscoveryRole
+  EC2InstanceProfileNameOut:
+    Condition: CreateIamResources
+    Value: !Ref EC2SSMDiscoveryInstanceProfile
+  SsmDocumentNameOut:
+    Value: !Ref DBDiscoveryDocument
