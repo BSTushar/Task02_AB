@@ -13,7 +13,7 @@
 | **3** | [Spoke account — Roles, EC2, SSM](#chapter-3-spoke-account--roles-ec2-ssm) | 2–5 |
 | **4** | [Discovery — Lambda & run](#chapter-4-discovery--lambda--run) | 6–8 |
 | **5** | [API — Lambda & Gateway](#chapter-5-api--lambda--gateway) | 9–11 |
-| **6** | [Optional — Automate discovery](#chapter-6-optional--automate-discovery) | 12 |
+| **6** | [Optional — Automate discovery](#chapter-6-optional--automate-discovery) | 12–13 |
 | **7** | [Order summary](#chapter-7-order-summary) | Dependency chain |
 
 ---
@@ -211,6 +211,15 @@ Browser or curl:
 
 New EC2 instances (SSM Online) appear on the **next** scheduled run. New **accounts** still require adding **`SPOKE_ACCOUNTS`** (and spoke IAM setup).
 
+## Step 13 — Optional spoke bootstrap automation (StackSet)
+
+If you onboard many spokes, automate setup with CloudFormation StackSets from the management account:
+
+1. Use template **`automation/spoke-bootstrap-stackset.yaml`**.
+2. Follow command guide in **`automation/STACKSET_AUTOMATION.md`**.
+3. Deploy to account IDs (or OU) and target regions.
+4. Keep `db-discovery` `SPOKE_ACCOUNTS` and `DISCOVERY_REGIONS` in sync.
+
 ---
 
 # Chapter 7 — Order summary
@@ -229,6 +238,7 @@ New EC2 instances (SSM Online) appear on the **next** scheduled run. New **accou
 | 5 | 10 | API Gateway + deploy | Management |
 | 5 | 11 | curl / browser / inventory UI | Management |
 | 6 | 12 | (Optional) EventBridge → db-discovery | Management |
+| 6 | 13 | (Optional) StackSet spoke bootstrap | Management |
 
 ---
 
