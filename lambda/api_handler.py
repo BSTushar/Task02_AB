@@ -9,10 +9,27 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Browser UI (inventory_ui.html) needs CORS; API Gateway "Enable CORS" is optional if Lambda returns these.
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token",
+    "Access-Control-Allow-Methods": "GET,OPTIONS",
+}
+
 AWS_REGION = os.environ.get("AWS_REGION", "ap-south-1")
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
 RESULTS_S3_BUCKET = os.environ.get("RESULTS_S3_BUCKET", "") or S3_BUCKET
 RESULTS_S3_KEY = os.environ.get("RESULTS_S3_KEY", "discovery/inventory.json")
+
+
+def http_response(status_code, body, is_json=True):
+    headers = dict(CORS_HEADERS)
+    if is_json:
+        headers["Content-Type"] = "application/json"
+        payload = json.dumps(body) if not isinstance(body, str) else body
+    else:
+        payload = body if body is not None else ""
+    return {"statusCode": status_code, "headers": headers, "body": payload}
 
 
 def to_json_serializable(obj):
@@ -129,7 +146,7 @@ def _api_root_response():
         "store": "s3",
         "endpoints": ["/health", "/regions", "/accounts", "/databases", "/accounts/{accountId}/instances"],
     }
-    return {"statusCode": 200, "body": json.dumps(body)}
+    return http_response(200, body)
 
 
 # One-segment paths that are real resources (not the stage name prefix in /prod alone)
@@ -162,44 +179,66 @@ def lambda_handler(event, context):
     path_segments = [p for p in path_stripped.split("/") if p]
     logger.info("path=%s path_stripped=%s path_params=%s", path, path_stripped, path_params)
 
+    method = (event.get("httpMethod") or "").upper()
+    if not method:
+        rc = event.get("requestContext") or {}
+        if isinstance(rc, dict):
+            m = (rc.get("http") or {}).get("method") if isinstance(rc.get("http"), dict) else None
+            method = (m or "").upper()
+    if method == "OPTIONS":
+        return http_response(200, "", is_json=False)
+
     try:
         if "/health" in path or path_stripped.endswith("/health") or path_segments == ["health"]:
             items = load_all_records()
-            return {"statusCode": 200, "body": json.dumps({"status": "ok", "total_records": len(items), "store": "s3"})}
+            return http_response(200, {"status": "ok", "total_records": len(items), "store": "s3"})
 
         # Bare invoke URL is often /{stage} only (e.g. /prod) — API Gateway sends one path segment.
         if _should_serve_api_root(path_segments):
             return _api_root_response()
 
-        is_list_accounts = (
-            path_segments
-            and path_segments[-1].lower() == "accounts"
-            and not path_params.get("accountId")
-            and "instances" not in path.lower()
-        )
-        if is_list_accounts:
-            items = load_all_records()
-            accounts = list(set(i.get("account_id", "unknown") for i in items if isinstance(i, dict) and i.get("account_id")))
-            return {"statusCode": 200, "body": json.dumps({"accounts": to_json_serializable(accounts)})}
-
         if path_segments and path_segments[-1].lower() == "regions" and "accounts" not in path.lower():
             items = load_all_records()
             regions = sorted(set(i.get("region") for i in items if isinstance(i, dict) and i.get("region")))
-            return {"statusCode": 200, "body": json.dumps({"regions": to_json_serializable(regions)})}
+            return http_response(200, {"regions": to_json_serializable(regions)})
 
+        # Must run before GET /accounts: /regions/{region}/accounts also ends with "accounts".
         if "regions" in path_segments and path_segments[-1].lower() == "accounts":
             try:
                 idx = path_segments.index("regions")
                 region = path_segments[idx + 1]
             except (ValueError, IndexError):
-                return {"statusCode": 400, "body": json.dumps({"error": "Invalid region path"})}
+                return http_response(400, {"error": "Invalid region path"})
             items = load_all_records()
             accounts = sorted(set(
                 i.get("account_id")
                 for i in items
                 if isinstance(i, dict) and i.get("account_id") and i.get("region") == region
             ))
-            return {"statusCode": 200, "body": json.dumps({"region": region, "accounts": to_json_serializable(accounts)})}
+            return http_response(200, {"region": region, "accounts": to_json_serializable(accounts)})
+
+        is_list_accounts = (
+            path_segments
+            and path_segments[-1].lower() == "accounts"
+            and "regions" not in path_segments
+            and not path_params.get("accountId")
+            and "instances" not in path.lower()
+        )
+        if is_list_accounts:
+            items = load_all_records()
+            qs_accounts = event.get("queryStringParameters") or {}
+            if not isinstance(qs_accounts, dict):
+                qs_accounts = {}
+            region_q = (qs_accounts.get("region") or "").strip()
+            if region_q:
+                accounts = sorted(set(
+                    i.get("account_id")
+                    for i in items
+                    if isinstance(i, dict) and i.get("account_id") and i.get("region") == region_q
+                ))
+                return http_response(200, {"region": region_q, "accounts": to_json_serializable(accounts)})
+            accounts = list(set(i.get("account_id", "unknown") for i in items if isinstance(i, dict) and i.get("account_id")))
+            return http_response(200, {"accounts": to_json_serializable(accounts)})
 
         qs = event.get("queryStringParameters") or {}
         if not isinstance(qs, dict):
@@ -213,8 +252,8 @@ def lambda_handler(event, context):
                 items = [i for i in items if isinstance(i, dict) and i.get("region") == region_filter]
             if "/instances" in path or path.endswith(account_id):
                 grouped = group_by_instance(items)
-                return {"statusCode": 200, "body": json.dumps(to_json_serializable({"account_id": account_id, "instances": grouped}))}
-            return {"statusCode": 200, "body": json.dumps(to_json_serializable({"account_id": account_id, "records": items}))}
+                return http_response(200, to_json_serializable({"account_id": account_id, "instances": grouped}))
+            return http_response(200, to_json_serializable({"account_id": account_id, "records": items}))
 
         if path.endswith("/databases") or "/databases" in path:
             items = load_all_records()
@@ -224,13 +263,13 @@ def lambda_handler(event, context):
                 items = [i for i in items if isinstance(i, dict) and i.get("engine") == engine]
             if acc:
                 items = [i for i in items if isinstance(i, dict) and i.get("account_id") == acc]
-            return {"statusCode": 200, "body": json.dumps(to_json_serializable({"databases": items}))}
+            return http_response(200, to_json_serializable({"databases": items}))
 
-        return {"statusCode": 404, "body": json.dumps({"error": "Not found"})}
+        return http_response(404, {"error": "Not found"})
 
     except ClientError as e:
         logger.error("AWS error: %s", e)
-        return {"statusCode": 500, "body": json.dumps({"error": "Internal error"})}
+        return http_response(500, {"error": "Internal error"})
     except Exception as e:
         logger.exception(str(e))
-        return {"statusCode": 500, "body": json.dumps({"error": "Internal error"})}
+        return http_response(500, {"error": "Internal error"})
