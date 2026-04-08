@@ -156,7 +156,6 @@ Replace these placeholders before deployment:
 ## Authors
 
 - **BSTushar**
-- **Kartikey Sandeep Shelot**
 - Airbus Cloud Intern Project — Task_02
 
 ---
