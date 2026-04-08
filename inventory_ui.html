@@ -15,6 +15,32 @@
       --ease-soft: var(--ease-butter-in-out);
       --dur-reveal: 1.25s;
       --dur-stagger-step: 0.16s;
+      /* smoother cross-theme interpolation */
+      --ease-magic: cubic-bezier(0.2, 0.92, 0.15, 1);
+      --dur-theme: 1.12s;
+      /* Page accent follows focused EC2 state (via body.ec2-ui-*) */
+      --ec2-ui-accent: #10b981;
+      --ec2-ui-rgb: 16, 185, 129;
+      --ec2-ui-btn-text: #a7f3d0;
+      --ec2-ui-hint: rgba(110, 233, 183, 0.95);
+    }
+    body.ec2-ui-stopped {
+      --ec2-ui-accent: #f87171;
+      --ec2-ui-rgb: 248, 113, 113;
+      --ec2-ui-btn-text: #fecaca;
+      --ec2-ui-hint: rgba(254, 202, 202, 0.95);
+    }
+    body.ec2-ui-warn {
+      --ec2-ui-accent: #fbbf24;
+      --ec2-ui-rgb: 251, 191, 36;
+      --ec2-ui-btn-text: #fde68a;
+      --ec2-ui-hint: rgba(253, 224, 71, 0.95);
+    }
+    body.ec2-ui-neutral {
+      --ec2-ui-accent: #94a3b8;
+      --ec2-ui-rgb: 148, 163, 184;
+      --ec2-ui-btn-text: #e2e8f0;
+      --ec2-ui-hint: rgba(203, 213, 225, 0.95);
     }
     html { scroll-behavior: smooth; }
     @keyframes fadeInUp {
@@ -34,6 +60,10 @@
       0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.32); }
       45% { box-shadow: 0 0 0 11px rgba(16,185,129,0); }
       100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+    }
+    @keyframes pulse-hero {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(var(--ec2-ui-rgb), 0.34); }
+      45% { box-shadow: 0 0 0 12px rgba(var(--ec2-ui-rgb), 0); }
     }
     @keyframes barGrow {
       from { transform: scaleY(0); transform-origin: bottom; }
@@ -61,6 +91,23 @@
       from { opacity: 0; transform: translate3d(0, 16px, 0); }
       to { opacity: 1; transform: translate3d(0, 0, 0); }
     }
+    @keyframes themeAuroraBurst {
+      0% { opacity: 0; transform: scale(1) translate3d(0, 0, 0); }
+      38% { opacity: 1; transform: scale(1.03) translate3d(0, 1%, 0); }
+      100% { opacity: 0; transform: scale(1) translate3d(0, 0, 0); }
+    }
+    @keyframes heroAuraBloom {
+      0%, 100% { opacity: 0.42; transform: scale(1); }
+      45% { opacity: 0.92; transform: scale(1.08); }
+    }
+    @keyframes topoPanelGlow {
+      0%, 100% { transform: translate3d(0, 0, 0); filter: brightness(1); }
+      50% { transform: translate3d(0, -3px, 0); filter: brightness(1.06); }
+    }
+    @keyframes gradientTitleSweep {
+      0%, 100% { filter: brightness(1) saturate(1); background-position: 0% 50%; }
+      45% { filter: brightness(1.15) saturate(1.18); background-position: 100% 50%; }
+    }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       *, *::before, *::after {
@@ -75,15 +122,116 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
+    .hero-section {
+      transition: box-shadow var(--dur-theme) var(--ease-magic);
+    }
+    .hero-section::before {
+      content: "";
+      position: absolute;
+      inset: -35% -15% 25%;
+      background: radial-gradient(ellipse 68% 95% at 50% -5%, rgba(var(--ec2-ui-rgb), 0.2), transparent 68%);
+      opacity: 0.55;
+      pointer-events: none;
+      transition: opacity var(--dur-theme) var(--ease-magic), background 1.25s var(--ease-magic);
+      z-index: 0;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      body.ec2-theme-morph .hero-section::before {
+        animation: heroAuraBloom 1.05s var(--ease-magic) both;
+      }
+      body.ec2-theme-morph .gradient-title {
+        animation: gradientTitleSweep 1s var(--ease-magic) both;
+      }
+      body.ec2-theme-morph .topology-themed-panel {
+        animation: topoPanelGlow 1.05s var(--ease-magic) both;
+      }
+    }
     .hero-mesh {
+      z-index: 1;
       animation: meshDrift 36s var(--ease-butter-in-out) infinite alternate;
       will-change: transform;
+      transition: opacity var(--dur-theme) var(--ease-magic), filter 1s var(--ease-magic);
+    }
+    @keyframes heroMeshShimmer {
+      0%, 100% { opacity: 0.18; filter: brightness(1) saturate(1); }
+      50% { opacity: 0.3; filter: brightness(1.28) saturate(1.12); }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      body.ec2-theme-morph .hero-mesh {
+        animation: meshDrift 36s var(--ease-butter-in-out) infinite alternate, heroMeshShimmer 1.12s var(--ease-magic) both;
+      }
     }
     .gradient-title {
-      background: linear-gradient(135deg, #e2e8f0 30%, #10b981 100%);
+      background: linear-gradient(135deg, #e2e8f0 28%, var(--ec2-ui-accent) 72%, #c4b5fd 100%);
+      background-size: 160% 160%;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      transition: background var(--dur-theme) var(--ease-magic), filter 0.9s var(--ease-magic), background-size 1.4s var(--ease-magic);
+    }
+    .hero-snapshot-dot {
+      background-color: var(--ec2-ui-accent) !important;
+      animation: pulse-hero 4.2s var(--ease-butter-in-out) infinite;
+      transition: background-color var(--dur-theme) var(--ease-magic), transform 0.85s var(--ease-magic);
+    }
+    .hero-snapshot-label {
+      color: var(--ec2-ui-accent);
+      transition: color var(--dur-theme) var(--ease-magic), letter-spacing 0.8s var(--ease-magic);
+    }
+    .theme-aurora {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+      background:
+        radial-gradient(ellipse 90% 55% at 50% -12%, rgba(var(--ec2-ui-rgb), 0.34), transparent 58%),
+        radial-gradient(ellipse 55% 45% at 92% 28%, rgba(var(--ec2-ui-rgb), 0.14), transparent 50%),
+        radial-gradient(ellipse 45% 40% at 8% 55%, rgba(99, 102, 241, 0.08), transparent 55%);
+      opacity: 0;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .theme-aurora.theme-aurora-burst {
+        animation: themeAuroraBurst 1.12s var(--ease-magic) both;
+      }
+    }
+    .topo-scan-line {
+      background: linear-gradient(90deg, transparent, rgba(var(--ec2-ui-rgb), 0.24), transparent) !important;
+      transition: background var(--dur-theme) var(--ease-magic), opacity 0.8s var(--ease-magic);
+    }
+    .section-accent-bar {
+      background: linear-gradient(to bottom, var(--ec2-ui-accent), #6366f1);
+      transition: background var(--dur-theme) var(--ease-magic);
+    }
+    .section-accent-bar-reverse {
+      background: linear-gradient(to bottom, #6366f1, var(--ec2-ui-accent));
+      transition: background var(--dur-theme) var(--ease-magic);
+    }
+    .kpi-hint-themed {
+      color: var(--ec2-ui-hint);
+      transition: color var(--dur-theme) var(--ease-magic), transform 0.9s var(--ease-magic);
+    }
+    .kpi-engine-gradient {
+      background: linear-gradient(to right, var(--ec2-ui-accent), #a5b4fc, #c4b5fd);
+      background-size: 140% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+      transition: background var(--dur-theme) var(--ease-magic), background-size 1.3s var(--ease-magic);
+    }
+    .kpi-hover-glow {
+      transition: box-shadow 0.85s var(--ease-magic), transform 0.65s var(--ease-butter);
+    }
+    .kpi-hover-glow:hover {
+      box-shadow: 0 16px 48px -24px rgba(var(--ec2-ui-rgb), 0.22) !important;
+    }
+    .topology-themed-panel {
+      border-color: rgba(var(--ec2-ui-rgb), 0.16);
+      box-shadow:
+        0 24px 80px -48px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(var(--ec2-ui-rgb), 0.07) inset,
+        0 0 48px -20px rgba(var(--ec2-ui-rgb), 0.12);
+      transition: border-color var(--dur-theme) var(--ease-magic), box-shadow 1.15s var(--ease-magic);
     }
     .kpi-num { display: inline-block; transform-origin: 50% 80%; }
     .engine-card {
@@ -101,7 +249,7 @@
       color: #f8fafc;
       border: 1px solid rgba(255, 255, 255, 0.14);
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-      accent-color: #10b981;
+      accent-color: var(--ec2-ui-accent);
       transition: border-color 0.6s var(--ease-butter), background-color 0.6s var(--ease-butter), color 0.6s var(--ease-butter), box-shadow 0.6s var(--ease-butter), transform 0.65s var(--ease-butter);
     }
     select.story-select:hover {
@@ -114,11 +262,19 @@
       transition-duration: 0.22s;
     }
     #refreshBtn {
-      transition: transform 0.65s var(--ease-butter), box-shadow 0.65s var(--ease-butter), border-color 0.55s var(--ease-butter), background-color 0.55s var(--ease-butter), color 0.55s var(--ease-butter);
+      border: 1px solid rgba(var(--ec2-ui-rgb), 0.5);
+      background: rgba(var(--ec2-ui-rgb), 0.15);
+      color: var(--ec2-ui-btn-text);
+      transition: transform 0.65s var(--ease-butter), box-shadow 0.85s var(--ease-magic), border-color var(--dur-theme) var(--ease-magic), background-color var(--dur-theme) var(--ease-magic), color var(--dur-theme) var(--ease-magic);
     }
     #refreshBtn:hover {
       transform: translate3d(0, -2px, 0) scale(1.02);
-      box-shadow: 0 16px 44px -14px rgba(16, 185, 129, 0.45);
+      background: rgba(var(--ec2-ui-rgb), 0.24);
+      box-shadow: 0 16px 44px -14px rgba(var(--ec2-ui-rgb), 0.48);
+    }
+    #refreshBtn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(var(--ec2-ui-rgb), 0.45), 0 16px 44px -14px rgba(var(--ec2-ui-rgb), 0.35);
     }
     #refreshBtn:active {
       transform: translate3d(0, 0, 0) scale(0.985);
@@ -126,8 +282,8 @@
     }
     select.story-select:focus {
       outline: none;
-      border-color: rgba(16, 185, 129, 0.55);
-      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.22), inset 0 1px 0 rgba(255,255,255,0.04);
+      border-color: rgba(var(--ec2-ui-rgb), 0.55);
+      box-shadow: 0 0 0 2px rgba(var(--ec2-ui-rgb), 0.22), inset 0 1px 0 rgba(255,255,255,0.04);
     }
     details summary {
       transition: color 0.45s var(--ease-butter);
@@ -137,7 +293,22 @@
       -webkit-backdrop-filter: blur(12px);
     }
     .table-row-interactive {
-      transition: background-color 0.65s var(--ease-butter), transform 0.65s var(--ease-butter);
+      transition: background-color 0.75s var(--ease-magic), transform 0.65s var(--ease-butter), box-shadow 0.95s var(--ease-magic);
+    }
+    .table-row-interactive.table-row-selected {
+      background-color: rgba(99, 102, 241, 0.12) !important;
+      box-shadow: inset 0 0 0 1px rgba(129, 140, 248, 0.42);
+      transition: background-color 0.75s var(--ease-magic), box-shadow 1s var(--ease-magic), transform 0.65s var(--ease-butter), filter 0.85s var(--ease-magic);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .table-row-interactive.table-row-selected {
+        animation: rowSelectedBloom 0.95s var(--ease-magic) both;
+      }
+    }
+    @keyframes rowSelectedBloom {
+      0% { filter: brightness(1); }
+      50% { filter: brightness(1.12); }
+      100% { filter: brightness(1); }
     }
     .table-row-interactive:hover {
       transform: translate3d(4px, 0, 0);
@@ -189,31 +360,32 @@
     }
   </style>
 </head>
-<body class="story-bg min-h-screen text-slate-100 m-0">
+<body class="story-bg ec2-ui-running min-h-screen text-slate-100 m-0">
+  <div id="themeAurora" class="theme-aurora" aria-hidden="true"></div>
   <div class="min-h-screen flex flex-col border-b border-white/[0.06]">
     <main class="flex-1 w-full flex flex-col">
     <!-- Hero (background full-bleed; content same width as rest of page) -->
-    <div class="relative pt-10 md:pt-12 pb-8 overflow-hidden border-b border-white/[0.06]">
+    <div class="hero-section relative pt-10 md:pt-12 pb-8 overflow-hidden">
       <svg class="hero-mesh absolute inset-0 w-full h-full opacity-[0.18] pointer-events-none" viewBox="0 0 800 260" preserveAspectRatio="xMidYMid slice">
         <defs>
           <radialGradient id="glow1" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#10b981" stop-opacity="0.6"/>
-            <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+            <stop offset="0%" stop-color="var(--ec2-ui-accent)" stop-opacity="0.58"/>
+            <stop offset="100%" stop-color="var(--ec2-ui-accent)" stop-opacity="0"/>
           </radialGradient>
         </defs>
         <ellipse cx="400" cy="130" rx="300" ry="90" fill="url(#glow1)"/>
-        <circle cx="120" cy="60" r="2" fill="#10b981"/>
+        <circle cx="120" cy="60" r="2" fill="var(--ec2-ui-accent)"/>
         <circle cx="680" cy="40" r="1.5" fill="#6366f1"/>
-        <circle cx="240" cy="190" r="1.5" fill="#10b981"/>
+        <circle cx="240" cy="190" r="1.5" fill="var(--ec2-ui-accent)"/>
         <circle cx="560" cy="170" r="2" fill="#6366f1"/>
-        <line x1="120" y1="60" x2="240" y2="190" stroke="#10b981" stroke-width="0.5" opacity="0.5"/>
-        <line x1="240" y1="190" x2="560" y2="170" stroke="#10b981" stroke-width="0.5" opacity="0.5"/>
+        <line x1="120" y1="60" x2="240" y2="190" stroke="var(--ec2-ui-accent)" stroke-width="0.5" opacity="0.5"/>
+        <line x1="240" y1="190" x2="560" y2="170" stroke="var(--ec2-ui-accent)" stroke-width="0.5" opacity="0.5"/>
       </svg>
 
       <div class="relative z-10 w-full max-w-6xl mx-auto px-6 md:px-8">
         <div class="flex items-center gap-2.5 mb-3" style="animation: fadeInUp 1.35s var(--ease-butter) forwards;">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" style="animation: pulse 4.2s var(--ease-butter-in-out) infinite;"></span>
-          <span class="text-[11px] tracking-[0.2em] uppercase font-semibold text-emerald-400">Snapshot from API</span>
+          <span class="hero-snapshot-dot w-2 h-2 rounded-full shrink-0"></span>
+          <span class="hero-snapshot-label text-[11px] tracking-[0.2em] uppercase font-semibold">Snapshot from API</span>
         </div>
         <h1 class="text-[clamp(1.375rem,5vw,2.5rem)] font-bold m-0 mb-2 gradient-title" style="animation: fadeInUp 1.5s var(--ease-butter) 0.2s both, titleShine 8s var(--ease-butter-in-out) 1.6s infinite;">Database Discovery</h1>
         <p class="text-sm text-slate-300 m-0 max-w-2xl leading-relaxed" style="animation: fadeInUp 1.5s var(--ease-butter) 0.35s both;">
@@ -222,7 +394,7 @@
 
         <details class="mt-4 text-sm text-slate-300 max-w-2xl" style="animation: fadeInUp 1.5s var(--ease-butter) 0.48s both;">
           <summary class="cursor-pointer text-slate-200 hover:text-white select-none list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
-            <span class="w-1 h-4 rounded-sm bg-gradient-to-b from-emerald-500 to-indigo-500"></span>
+            <span class="w-1 h-4 rounded-sm section-accent-bar"></span>
             How this page works
           </summary>
           <ol class="mt-3 pl-2 space-y-1.5 text-[13px] text-slate-300 border-l border-white/10 ml-1.5 pl-4">
@@ -244,7 +416,7 @@
             <select id="accountSelect" class="story-select h-10 min-w-[16.5rem] max-w-[min(100vw-2rem,22rem)] rounded-full pl-4 pr-9 text-[13px] leading-none cursor-pointer"></select>
             <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] pointer-events-none leading-none">▼</span>
           </div>
-          <button id="refreshBtn" type="button" class="inline-flex items-center justify-center h-10 rounded-full px-5 text-[13px] font-semibold leading-none cursor-pointer border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:text-emerald-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0e1a] shrink-0">
+          <button id="refreshBtn" type="button" class="inline-flex items-center justify-center h-10 rounded-full px-5 text-[13px] font-semibold leading-none cursor-pointer shrink-0">
             ↻ Reload from API
           </button>
           <span id="statusBadge" class="text-xs text-slate-300 self-center max-w-md min-h-[1.25rem] flex items-center"></span>
@@ -256,14 +428,14 @@
     <!-- Single content column: KPI + all sections share exact same width as hero -->
     <div class="w-full max-w-6xl mx-auto px-6 md:px-8">
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-5 py-7 sm:py-8 border-b border-white/[0.06]">
-      <div class="kpi-strip-cell rounded-2xl border border-white/[0.09] bg-white/[0.03] px-5 py-7 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.55)] transition-[box-shadow,transform] duration-500 hover:shadow-[0_16px_48px_-24px_rgba(16,185,129,0.12)]" style="animation: fadeInUp 1.35s var(--ease-butter) 0.55s both;">
+      <div class="kpi-strip-cell kpi-hover-glow rounded-2xl border border-white/[0.09] bg-white/[0.03] px-5 py-7 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.55)] transition-[box-shadow,transform] duration-500" style="animation: fadeInUp 1.35s var(--ease-butter) 0.55s both;">
         <div class="kpi-strip-label">
           <span class="text-[11px] tracking-widest uppercase text-slate-400 leading-snug">EC2 instances</span>
         </div>
         <div class="kpi-strip-value">
           <span id="summaryInstances" class="kpi-num text-[2.5rem] font-bold text-white leading-none tabular-nums tracking-tight">–</span>
         </div>
-        <div id="summaryInstancesHint" class="kpi-strip-sub text-xs text-emerald-300/95 leading-snug">In this region + account</div>
+        <div id="summaryInstancesHint" class="kpi-strip-sub kpi-hint-themed text-xs leading-snug">In this region + account</div>
       </div>
       <div class="kpi-strip-cell rounded-2xl border border-white/[0.09] bg-white/[0.03] px-5 py-7 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.55)] transition-[box-shadow,transform] duration-500 hover:shadow-[0_16px_48px_-24px_rgba(99,102,241,0.12)]" style="animation: fadeInUp 1.35s var(--ease-butter) 0.72s both;">
         <div class="kpi-strip-label">
@@ -274,12 +446,12 @@
         </div>
         <div id="summaryDbHint" class="kpi-strip-sub text-xs text-indigo-300/95 leading-snug">Total engine rows across instances</div>
       </div>
-      <div class="kpi-strip-cell rounded-2xl border border-white/[0.09] bg-white/[0.03] px-5 py-7 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.55)] transition-[box-shadow,transform] duration-500 hover:shadow-[0_16px_48px_-24px_rgba(16,185,129,0.1)]" style="animation: fadeInUp 1.35s var(--ease-butter) 0.88s both;">
+      <div class="kpi-strip-cell kpi-hover-glow rounded-2xl border border-white/[0.09] bg-white/[0.03] px-5 py-7 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.55)] transition-[box-shadow,transform] duration-500" style="animation: fadeInUp 1.35s var(--ease-butter) 0.88s both;">
         <div class="kpi-strip-label">
           <span class="text-[11px] tracking-widest uppercase text-slate-400 leading-snug">Distinct engines</span>
         </div>
         <div class="kpi-strip-value">
-          <span id="summaryEngineCount" class="kpi-num text-[2.5rem] font-bold leading-none tabular-nums tracking-tight bg-gradient-to-r from-emerald-300 to-indigo-300 bg-clip-text text-transparent">–</span>
+          <span id="summaryEngineCount" class="kpi-num kpi-engine-gradient text-[2.5rem] font-bold leading-none tabular-nums tracking-tight">–</span>
         </div>
         <div id="summaryEngines" class="kpi-strip-sub text-xs text-slate-300 leading-snug break-words text-center" title="">–</div>
       </div>
@@ -288,7 +460,7 @@
       <!-- Engine cards (storytelling style) -->
       <section class="py-8 border-b border-white/[0.06]">
         <div class="flex items-center gap-2 mb-6">
-          <span class="w-[3px] h-[18px] rounded-sm bg-gradient-to-b from-emerald-500 to-indigo-500"></span>
+          <span class="w-[3px] h-[18px] rounded-sm section-accent-bar"></span>
           <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Databases by engine</h2>
         </div>
         <p class="text-[11px] text-slate-300 -mt-4 mb-6 max-w-xl">Same filter as the table. Bars scale to the largest count in this view.</p>
@@ -301,12 +473,12 @@
       <!-- Topology -->
       <section class="py-8 border-b border-white/[0.06]">
         <div class="flex items-center gap-2 mb-5">
-          <span class="w-[3px] h-[18px] rounded-sm bg-gradient-to-b from-indigo-500 to-emerald-500"></span>
+          <span class="w-[3px] h-[18px] rounded-sm section-accent-bar-reverse"></span>
           <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Infrastructure topology</h2>
         </div>
-        <p class="text-[11px] text-slate-300 -mt-3 mb-4 max-w-2xl">Schematic view of the first instance that has databases (otherwise the first instance in the table). Lines are illustrative.</p>
-        <div class="relative rounded-2xl overflow-hidden glass-surface bg-white/[0.03] border border-white/[0.06] shadow-[0_24px_80px_-48px_rgba(0,0,0,0.55)]">
-          <div class="absolute left-0 right-0 h-px pointer-events-none z-[1]" style="background: linear-gradient(90deg, transparent, rgba(16,185,129,0.22), transparent); animation: scanLine 8.5s linear infinite;"></div>
+        <p class="text-[11px] text-slate-300 -mt-3 mb-4 max-w-2xl">Click a row in <strong class="font-semibold text-slate-200">Instances &amp; databases</strong> to focus this diagram on that EC2 host. Default focus is the first instance with detected DBs (otherwise the first row). Connector lines are illustrative.</p>
+        <div class="topology-themed-panel relative rounded-2xl overflow-hidden glass-surface bg-white/[0.03]">
+          <div class="topo-scan-line absolute left-0 right-0 h-px pointer-events-none z-[1]" style="animation: scanLine 8.5s linear infinite;"></div>
           <div id="topologyEmpty" class="py-16 text-center text-sm text-slate-200">Select a region and account with instances to show a map.</div>
           <svg id="topologySvg" class="w-full hidden min-h-[280px]" viewBox="0 0 600 300" style="display:block;">
             <defs>
@@ -322,10 +494,10 @@
             <text x="94" y="82" fill="rgba(99,102,241,0.4)" font-size="9" font-family="ui-monospace, monospace">VPC (scoping)</text>
             <g id="topoEdges"></g>
             <g id="topoEc2" style="animation: nodeEntrance 1.45s var(--ease-butter) both;">
-              <rect x="158" y="118" width="124" height="68" rx="10" fill="rgba(16,185,129,0.08)" stroke="rgba(16,185,129,0.4)" stroke-width="1"/>
-              <circle cx="182" cy="132" r="4" fill="#10b981" class="pulse-ring" style="animation: pulse 4.2s var(--ease-butter-in-out) infinite;"/>
-              <circle cx="182" cy="132" r="8" fill="none" stroke="#10b981" stroke-width="0.5" style="animation: ripple 3.8s var(--ease-butter-in-out) infinite;"/>
-              <text x="220" y="143" fill="#10b981" font-size="11" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">EC2</text>
+              <rect id="topoEc2Rect" x="158" y="118" width="124" height="68" rx="10" fill="rgba(16,185,129,0.08)" stroke="rgba(16,185,129,0.4)" stroke-width="1"/>
+              <circle id="topoEc2Dot" cx="182" cy="132" r="4" fill="#10b981" class="pulse-ring" style="animation: pulse 4.2s var(--ease-butter-in-out) infinite;"/>
+              <circle id="topoEc2Ripple" cx="182" cy="132" r="8" fill="none" stroke="#10b981" stroke-width="0.5" style="animation: ripple 3.8s var(--ease-butter-in-out) infinite;"/>
+              <text id="topoEc2Label" x="220" y="143" fill="#10b981" font-size="11" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">EC2</text>
               <text id="topoEc2Id" x="220" y="160" fill="#94a3b8" font-size="8.5" text-anchor="middle" font-family="ui-monospace, monospace">—</text>
               <text id="topoEc2Meta" x="220" y="176" fill="#64748b" font-size="9" text-anchor="middle">—</text>
             </g>
@@ -339,7 +511,7 @@
       <section class="py-8 pb-16">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
           <div class="flex items-center gap-2">
-            <span class="w-[3px] h-[18px] rounded-sm bg-gradient-to-b from-emerald-500 to-indigo-500"></span>
+            <span class="w-[3px] h-[18px] rounded-sm section-accent-bar"></span>
             <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Instances &amp; databases</h2>
           </div>
           <p id="tableCaption" class="text-[11px] text-slate-300 m-0"></p>
@@ -425,6 +597,12 @@
     const topologySvg = document.getElementById("topologySvg");
     const topologyEmpty = document.getElementById("topologyEmpty");
 
+    let viewInstances = [];
+    let viewRegion = "";
+    let viewAccount = "";
+    /** null = default focus (first instance with DBs, else first row) */
+    let topologySelectedInstanceId = null;
+
     function setStatus(msg, type = "info") {
       const colors = { info: "text-slate-200", success: "text-emerald-300", error: "text-red-400" };
       statusLine.className = "mt-3 text-xs min-h-[2.5rem] whitespace-pre-line max-w-3xl " + (colors[type] || colors.info);
@@ -509,92 +687,309 @@
       return tags.Name || tags.name || null;
     }
 
-    function renderTopology(instances, region, account) {
-      if (!instances || !instances.length) {
-        topologySvg.classList.add("hidden");
-        topologyEmpty.classList.remove("hidden");
-        return;
+    function normalizeEc2State(s) {
+      return (s == null ? "" : String(s)).toLowerCase().trim();
+    }
+
+    /** Colours for table dot, status text, and topology EC2 node. */
+    function ec2StateVisual(state, discoveryStatus) {
+      const s = normalizeEc2State(state);
+      const pulse = "animation: pulse 4.2s var(--ease-butter-in-out) infinite;";
+      if (s === "unknown" && normalizeEc2State(discoveryStatus) !== "failed") {
+        return {
+          dotClass: "bg-amber-400",
+          dotStyle: "",
+          rowStatusClass: "text-amber-200",
+          rowStatusText: "unknown",
+          rectFill: "rgba(251,191,36,0.08)",
+          rectStroke: "rgba(251,191,36,0.35)",
+          dotFill: "#fbbf24",
+          rippleStroke: "rgba(251,191,36,0.35)",
+          labelFill: "#fcd34d",
+          topoPulse: false,
+        };
       }
-      topologyEmpty.classList.add("hidden");
-      topologySvg.classList.remove("hidden");
-
-      const primary = instances.find(i => (i.databases || []).length) || instances[0];
-      const dbs = primary.databases || [];
-      const meta = [primary.instance_type || "type ?", tagName(primary.tags) || ""].filter(Boolean).join(" · ");
-
-      document.getElementById("topoRegionText").textContent = `AWS ${region}`;
-      document.getElementById("topoAccountText").textContent = `Account ${account}`;
-      document.getElementById("topoEc2Id").textContent = primary.instance_id || "—";
-      document.getElementById("topoEc2Meta").textContent = meta || "—";
-
-      const edges = document.getElementById("topoEdges");
-      const nodes = document.getElementById("topoDbNodes");
-      edges.innerHTML = "";
-      nodes.innerHTML = "";
-
-      if (!dbs.length) {
-        return;
+      if (s === "running" || s === "pending" || s === "rebooting") {
+        return {
+          dotClass: "bg-emerald-500",
+          dotStyle: pulse,
+          rowStatusClass: "text-emerald-400",
+          rowStatusText: state || "running",
+          rectFill: "rgba(16,185,129,0.08)",
+          rectStroke: "rgba(16,185,129,0.4)",
+          dotFill: "#10b981",
+          rippleStroke: "#10b981",
+          labelFill: "#10b981",
+          topoPulse: true,
+        };
       }
+      if (s === "stopped" || s === "stopping" || s === "shutting-down") {
+        return {
+          dotClass: "bg-red-500",
+          dotStyle: "",
+          rowStatusClass: "text-red-400",
+          rowStatusText: state || s,
+          rectFill: "rgba(248,113,113,0.1)",
+          rectStroke: "rgba(248,113,113,0.55)",
+          dotFill: "#f87171",
+          rippleStroke: "rgba(248,113,113,0.35)",
+          labelFill: "#f87171",
+          topoPulse: false,
+        };
+      }
+      if (s === "terminated") {
+        return {
+          dotClass: "bg-slate-500",
+          dotStyle: "",
+          rowStatusClass: "text-slate-400",
+          rowStatusText: "terminated",
+          rectFill: "rgba(148,163,184,0.08)",
+          rectStroke: "rgba(148,163,184,0.35)",
+          dotFill: "#94a3b8",
+          rippleStroke: "rgba(148,163,184,0.3)",
+          labelFill: "#94a3b8",
+          topoPulse: false,
+        };
+      }
+      const d = normalizeEc2State(discoveryStatus);
+      if (d === "failed") {
+        return {
+          dotClass: "bg-red-400",
+          dotStyle: "",
+          rowStatusClass: "text-red-400",
+          rowStatusText: discoveryStatus || "failed",
+          rectFill: "rgba(248,113,113,0.1)",
+          rectStroke: "rgba(248,113,113,0.45)",
+          dotFill: "#f87171",
+          rippleStroke: "rgba(248,113,113,0.3)",
+          labelFill: "#fca5a5",
+          topoPulse: false,
+        };
+      }
+      if (d === "success") {
+        return {
+          dotClass: "bg-emerald-500",
+          dotStyle: pulse,
+          rowStatusClass: "text-emerald-400",
+          rowStatusText: "success",
+          rectFill: "rgba(16,185,129,0.08)",
+          rectStroke: "rgba(16,185,129,0.4)",
+          dotFill: "#10b981",
+          rippleStroke: "#10b981",
+          labelFill: "#10b981",
+          topoPulse: true,
+        };
+      }
+      return {
+        dotClass: "bg-slate-400",
+        dotStyle: "",
+        rowStatusClass: "text-slate-400",
+        rowStatusText: state || discoveryStatus || "unknown",
+        rectFill: "rgba(148,163,184,0.06)",
+        rectStroke: "rgba(148,163,184,0.25)",
+        dotFill: "#94a3b8",
+        rippleStroke: "rgba(148,163,184,0.25)",
+        labelFill: "#94a3b8",
+        topoPulse: false,
+      };
+    }
 
-      const n = dbs.length;
-      const dbNodeRectH = 48;
-      const dbNodeGap = 16;
-      const dbRowStep = dbNodeRectH + dbNodeGap;
-      const baseY = 132;
-      const startY = baseY - ((n - 1) * dbRowStep) / 2;
-      dbs.forEach((db, i) => {
-        const y = startY + i * dbRowStep;
-        const st = styleForEngine(db.engine);
-        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        const ec2AnchorY = 142 + Math.min(i * 4, 12);
-        path.setAttribute("d", `M282 ${ec2AnchorY} Q322 ${y - 4} 378 ${y + 2}`);
-        path.setAttribute("fill", "none");
-        path.setAttribute("stroke", edgeStrokeForEngine(db.engine));
-        path.setAttribute("stroke-width", "1.5");
-        path.setAttribute("stroke-dasharray", "5 5");
-        path.setAttribute("marker-end", "url(#arr2)");
-        path.style.animation = `dash ${5.6 + i * 0.7}s linear infinite`;
-        edges.appendChild(path);
+    function instanceRowVisual(inst) {
+      const raw = inst.ec2_state;
+      if (raw != null && String(raw).trim() !== "")
+        return ec2StateVisual(raw, inst.discovery_status);
+      return ec2StateVisual(null, inst.discovery_status);
+    }
 
-        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        g.setAttribute("style", `animation: nodeEntrance 1.35s ${EASE_BUTTER} ${0.22 + i * 0.17}s both;`);
-        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        rect.setAttribute("x", "378");
-        rect.setAttribute("y", String(y - 22));
-        rect.setAttribute("width", "110");
-        rect.setAttribute("height", "48");
-        rect.setAttribute("rx", "10");
-        rect.setAttribute("fill", st.bg.replace("0.04)", "0.08)"));
-        rect.setAttribute("stroke", st.border);
-        rect.setAttribute("stroke-width", "1");
-        g.appendChild(rect);
-        const t1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t1.setAttribute("x", "433");
-        t1.setAttribute("y", String(y - 6));
-        t1.setAttribute("fill", st.accent);
-        t1.setAttribute("font-size", "11");
-        t1.setAttribute("font-weight", "700");
-        t1.setAttribute("text-anchor", "middle");
-        t1.textContent = st.label;
-        g.appendChild(t1);
-        const t2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t2.setAttribute("x", "433");
-        t2.setAttribute("y", String(y + 8));
-        t2.setAttribute("fill", "#64748b");
-        t2.setAttribute("font-size", "9");
-        t2.setAttribute("text-anchor", "middle");
-        t2.textContent = `${db.version || "?"} · ${db.status || "unknown"}`;
-        g.appendChild(t2);
-        nodes.appendChild(g);
-      });
+    function defaultTopologyPrimaryInstance(instances) {
+      if (!instances || !instances.length) return null;
+      return instances.find(i => (i.databases || []).length) || instances[0];
+    }
+
+    function resolveTopologyPrimary(instances, selectedId) {
+      if (!instances || !instances.length) return null;
+      if (selectedId) {
+        const hit = instances.find(i => i.instance_id === selectedId);
+        if (hit) return hit;
+      }
+      return defaultTopologyPrimaryInstance(instances);
+    }
+
+    function effectiveTopologyInstanceId(instances, selectedId) {
+      const p = resolveTopologyPrimary(instances, selectedId);
+      return p && p.instance_id ? p.instance_id : null;
+    }
+
+    function themeKeyFromInstance(inst) {
+      if (!inst) return "running";
+      const s = normalizeEc2State(inst.ec2_state);
+      const d = normalizeEc2State(inst.discovery_status);
+      if (s === "stopped" || s === "stopping" || s === "shutting-down") return "stopped";
+      if (s === "terminated") return "neutral";
+      if (s === "unknown" && d !== "failed") return "warn";
+      if (d === "failed") return "stopped";
+      if (s === "running" || s === "pending" || s === "rebooting") return "running";
+      if (inst.ec2_state != null && String(inst.ec2_state).trim() !== "") return "neutral";
+      if (d === "success") return "running";
+      return "neutral";
+    }
+
+    function applyGlobalEc2Theme(primary) {
+      const key = themeKeyFromInstance(primary);
+      const prev = document.body.dataset.ec2UiTheme || "";
+      document.body.dataset.ec2UiTheme = key;
+      document.body.classList.remove("ec2-ui-running", "ec2-ui-stopped", "ec2-ui-warn", "ec2-ui-neutral");
+      document.body.classList.add("ec2-ui-" + key);
+      const changed = prev !== "" && prev !== key;
+      if (changed) {
+        document.body.classList.add("ec2-theme-morph");
+        clearTimeout(window._ec2MorphClear);
+        window._ec2MorphClear = setTimeout(() => document.body.classList.remove("ec2-theme-morph"), 1180);
+        const au = document.getElementById("themeAurora");
+        if (au) {
+          au.classList.remove("theme-aurora-burst");
+          void au.offsetWidth;
+          au.classList.add("theme-aurora-burst");
+        }
+      }
+      return changed;
+    }
+
+    function applyTopoEc2Visual(state, discoveryStatus) {
+      const v = ec2StateVisual(state, discoveryStatus);
+      const rect = document.getElementById("topoEc2Rect");
+      const dot = document.getElementById("topoEc2Dot");
+      const ripple = document.getElementById("topoEc2Ripple");
+      const label = document.getElementById("topoEc2Label");
+      if (rect) {
+        rect.setAttribute("fill", v.rectFill);
+        rect.setAttribute("stroke", v.rectStroke);
+      }
+      if (dot) {
+        dot.setAttribute("fill", v.dotFill);
+        dot.setAttribute("style", v.topoPulse ? "animation: pulse 4.2s var(--ease-butter-in-out) infinite;" : "animation: none;");
+      }
+      if (ripple) {
+        ripple.setAttribute("stroke", v.rippleStroke);
+        ripple.setAttribute("style", v.topoPulse ? "animation: ripple 3.8s var(--ease-butter-in-out) infinite;" : "animation: none; opacity: 0.35;");
+      }
+      if (label) label.setAttribute("fill", v.labelFill);
+    }
+
+    function renderTopology(instances, region, account, selectedInstanceId) {
+      let themePrimary = null;
+      try {
+        if (!instances || !instances.length) {
+          topologySvg.classList.add("hidden");
+          topologyEmpty.classList.remove("hidden");
+          return;
+        }
+        topologyEmpty.classList.add("hidden");
+        topologySvg.classList.remove("hidden");
+
+        const primary = resolveTopologyPrimary(instances, selectedInstanceId);
+        if (!primary) {
+          topologySvg.classList.add("hidden");
+          topologyEmpty.classList.remove("hidden");
+          return;
+        }
+        themePrimary = primary;
+        const dbs = primary.databases || [];
+        const meta = [primary.instance_type || "type ?", tagName(primary.tags) || ""].filter(Boolean).join(" · ");
+
+        document.getElementById("topoRegionText").textContent = `AWS ${region}`;
+        document.getElementById("topoAccountText").textContent = `Account ${account}`;
+        document.getElementById("topoEc2Id").textContent = primary.instance_id || "—";
+        document.getElementById("topoEc2Meta").textContent = meta || "—";
+        applyTopoEc2Visual(primary.ec2_state, primary.discovery_status);
+
+        const edges = document.getElementById("topoEdges");
+        const nodes = document.getElementById("topoDbNodes");
+        edges.innerHTML = "";
+        nodes.innerHTML = "";
+
+        if (!dbs.length) {
+          return;
+        }
+
+        const n = dbs.length;
+        const dbNodeRectH = 48;
+        const dbNodeGap = 16;
+        const dbRowStep = dbNodeRectH + dbNodeGap;
+        const baseY = 132;
+        const startY = baseY - ((n - 1) * dbRowStep) / 2;
+        dbs.forEach((db, i) => {
+          const y = startY + i * dbRowStep;
+          const st = styleForEngine(db.engine);
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          const ec2AnchorY = 142 + Math.min(i * 4, 12);
+          path.setAttribute("d", `M282 ${ec2AnchorY} Q322 ${y - 4} 378 ${y + 2}`);
+          path.setAttribute("fill", "none");
+          path.setAttribute("stroke", edgeStrokeForEngine(db.engine));
+          path.setAttribute("stroke-width", "1.5");
+          path.setAttribute("stroke-dasharray", "5 5");
+          path.setAttribute("marker-end", "url(#arr2)");
+          path.style.animation = `dash ${5.6 + i * 0.7}s linear infinite`;
+          edges.appendChild(path);
+
+          const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+          g.setAttribute("style", `animation: nodeEntrance 1.35s ${EASE_BUTTER} ${0.22 + i * 0.17}s both;`);
+          const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          rect.setAttribute("x", "378");
+          rect.setAttribute("y", String(y - 22));
+          rect.setAttribute("width", "110");
+          rect.setAttribute("height", "48");
+          rect.setAttribute("rx", "10");
+          rect.setAttribute("fill", st.bg.replace("0.04)", "0.08)"));
+          rect.setAttribute("stroke", st.border);
+          rect.setAttribute("stroke-width", "1");
+          g.appendChild(rect);
+          const t1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          t1.setAttribute("x", "433");
+          t1.setAttribute("y", String(y - 6));
+          t1.setAttribute("fill", st.accent);
+          t1.setAttribute("font-size", "11");
+          t1.setAttribute("font-weight", "700");
+          t1.setAttribute("text-anchor", "middle");
+          t1.textContent = st.label;
+          g.appendChild(t1);
+          const t2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          t2.setAttribute("x", "433");
+          t2.setAttribute("y", String(y + 8));
+          t2.setAttribute("fill", "#64748b");
+          t2.setAttribute("font-size", "9");
+          t2.setAttribute("text-anchor", "middle");
+          t2.textContent = `${db.version || "?"} · ${db.status || "unknown"}`;
+          g.appendChild(t2);
+          nodes.appendChild(g);
+        });
+      } finally {
+        const themeMorphed = applyGlobalEc2Theme(themePrimary);
+        if (themeMorphed && themePrimary && motionOk() && typeof Element.prototype.animate === "function") {
+          const g = document.getElementById("topoEc2");
+          if (g) {
+            g.animate(
+              [
+                { transform: "scale(1)" },
+                { transform: "scale(1.06)" },
+                { transform: "scale(1)" },
+              ],
+              { duration: 820, easing: "cubic-bezier(0.2, 0.92, 0.15, 1)" }
+            );
+          }
+        }
+      }
     }
 
     function computeSummaries(instances, region, account) {
       const engineCounts = {};
       let dbCount = 0;
       let successN = 0;
+      let runningN = 0;
       instances.forEach(inst => {
         if ((inst.discovery_status || "") === "success") successN++;
+        const es = normalizeEc2State(inst.ec2_state);
+        if (es === "running" || es === "pending" || es === "rebooting") runningN++;
         const dbs = inst.databases || [];
         dbCount += dbs.length;
         dbs.forEach(d => {
@@ -614,11 +1009,15 @@
       summaryEngines.textContent = engineLine;
       summaryEngines.title = distinct ? engineLine : "";
 
-      document.getElementById("summaryInstancesHint").textContent =
-        instances.length ? `${successN}/${instances.length} discovery success` : "In this region + account";
+      const hasEc2State = instances.some(i => i.ec2_state);
+      document.getElementById("summaryInstancesHint").textContent = instances.length
+        ? hasEc2State
+          ? `${runningN}/${instances.length} EC2 running · ${successN}/${instances.length} discovery success`
+          : `${successN}/${instances.length} discovery success`
+        : "In this region + account";
 
       renderEngineCards(engineCounts);
-      renderTopology(instances, region, account);
+      renderTopology(instances, region, account, topologySelectedInstanceId);
     }
 
     function escapeHtml(s) {
@@ -626,29 +1025,41 @@
     }
 
     function renderInstanceRows(instances) {
+      const focusId = effectiveTopologyInstanceId(instances, topologySelectedInstanceId);
       instancesGrid.innerHTML = instances.map((inst, rowIdx) => {
         const dbs = inst.databases || [];
+        const rowSelected = focusId && inst.instance_id === focusId;
         const badges = dbs.length
           ? dbs.map(d => {
               const st = styleForEngine(d.engine);
               return `<span class="inline-block rounded-md px-2 py-0.5 text-[11px] mr-1 mb-1 border" style="background:${st.chip};border-color:${st.border};color:${st.accent}">${escapeHtml(d.engine)} ${escapeHtml(String(d.version || ""))}</span>`;
             }).join("")
           : `<span class="text-slate-500 text-xs">No DB detected</span>`;
-        const overallStatus = inst.discovery_status || "unknown";
-        const stColor = overallStatus === "success" ? "text-emerald-400" : overallStatus === "failed" ? "text-red-400" : "text-slate-400";
+        const rowV = instanceRowVisual(inst);
+        const disc = inst.discovery_status || "unknown";
         const delay = 0.1 * rowIdx;
+        const statusSecondary =
+          inst.ec2_state && disc && disc !== "unknown"
+            ? `<span class="block text-[10px] font-normal text-slate-500 mt-0.5">discovery: ${escapeHtml(disc)}</span>`
+            : "";
+        const displayName = tagName(inst.tags);
         return `
-          <div class="table-row-interactive md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,2fr)_minmax(0,0.9fr)] gap-0 border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.06]" style="animation: revealRow 1.05s var(--ease-butter) ${delay}s both;">
-            <div class="px-4 py-3.5 text-xs font-mono text-slate-400 flex items-center gap-2 md:border-0 border-b border-white/[0.04]">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" style="animation: pulse 4.2s var(--ease-butter-in-out) infinite;"></span>
-              ${escapeHtml(inst.instance_id || "—")}
+          <div role="button" tabindex="0" data-instance-id="${escapeHtml(inst.instance_id || "")}" class="table-row-interactive cursor-pointer md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,2fr)_minmax(0,0.9fr)] gap-0 border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.06]${rowSelected ? " table-row-selected" : ""}" style="animation: revealRow 1.05s var(--ease-butter) ${delay}s both;">
+            <div class="px-4 py-3.5 text-xs md:border-0 border-b border-white/[0.04]">
+              <div class="flex items-start gap-2 min-w-0">
+                <span class="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${rowV.dotClass}" ${rowV.dotStyle ? `style="${rowV.dotStyle}"` : ""}></span>
+                <div class="min-w-0">
+                  <div class="font-mono text-slate-300 break-all">${escapeHtml(inst.instance_id || "—")}</div>
+                  ${displayName ? `<div class="text-[11px] font-semibold text-slate-200 mt-1 tracking-tight">${escapeHtml(displayName)}</div>` : ""}
+                </div>
+              </div>
             </div>
             <div class="px-4 py-3.5 text-xs text-slate-200 md:border-0 border-b border-white/[0.04]">
               <span class="inline-block rounded-md px-2 py-0.5 text-[11px] border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">${escapeHtml(inst.instance_type || "unknown")}</span>
             </div>
-            <div class="px-4 py-3.5 text-[11px] text-slate-500 font-mono break-all md:border-0 border-b border-white/[0.04]">${escapeHtml(formatTags(inst.tags))}</div>
+            <div class="px-4 py-3.5 text-[11px] text-slate-400 font-mono break-all md:border-0 border-b border-white/[0.04]" title="${escapeHtml(formatTags(inst.tags))}">${escapeHtml(formatTagsSansName(inst.tags))}</div>
             <div class="px-4 py-3.5 text-xs md:border-0 border-b border-white/[0.04]">${badges}</div>
-            <div class="px-4 py-3.5 text-xs font-semibold ${stColor}">${escapeHtml(overallStatus)}</div>
+            <div class="px-4 py-3.5 text-xs font-semibold ${rowV.rowStatusClass}">${escapeHtml(rowV.rowStatusText)}${statusSecondary}</div>
           </div>`;
       }).join("");
     }
@@ -656,6 +1067,14 @@
     function formatTags(tags) {
       if (!tags || typeof tags !== "object") return "–";
       const entries = Object.entries(tags);
+      if (!entries.length) return "–";
+      return entries.map(([k, v]) => `${k}=${v}`).join(", ");
+    }
+
+    /** Tags column: omit Name/name (shown under instance id). */
+    function formatTagsSansName(tags) {
+      if (!tags || typeof tags !== "object") return "–";
+      const entries = Object.entries(tags).filter(([k]) => String(k).toLowerCase() !== "name");
       if (!entries.length) return "–";
       return entries.map(([k, v]) => `${k}=${v}`).join(", ");
     }
@@ -705,6 +1124,8 @@
           accountSelect.appendChild(opt);
         });
         if (!accounts.length) {
+          viewInstances = [];
+          topologySelectedInstanceId = null;
           instancesGrid.innerHTML = "";
           emptyState.classList.remove("hidden");
           summaryInstances.textContent = "0";
@@ -740,7 +1161,14 @@
         const data = await fetchJson(url);
         const instances = data.instances || [];
         instancesGrid.innerHTML = "";
+        viewInstances = instances;
+        viewRegion = region;
+        viewAccount = account;
+        if (topologySelectedInstanceId && !instances.some(i => i.instance_id === topologySelectedInstanceId)) {
+          topologySelectedInstanceId = null;
+        }
         if (!instances.length) {
+          topologySelectedInstanceId = null;
           emptyState.classList.remove("hidden");
           computeSummaries([], region, account);
           tableCaption.textContent = `Region ${region} · account ${account} · 0 instances`;
@@ -752,10 +1180,15 @@
         renderInstanceRows(instances);
         computeSummaries(instances, region, account);
         tableCaption.textContent = `Region ${region} · account ${account} · ${instances.length} instance(s)`;
-        setStatus(`Loaded ${instances.length} instance(s). Engine cards and topology match this filter.`, "success");
+        setStatus(
+          `Loaded ${instances.length} instance(s). Click a table row to change the topology focus.`,
+          "success"
+        );
         setBadge("✓ In sync", "ok");
       } catch (e) {
         console.error(e);
+        viewInstances = [];
+        topologySelectedInstanceId = null;
         instancesGrid.innerHTML = "";
         emptyState.classList.remove("hidden");
         computeSummaries([], region, account);
@@ -768,6 +1201,24 @@
     regionSelect.addEventListener("change", () => loadAccounts());
     accountSelect.addEventListener("change", () => loadInstances());
     refreshBtn.addEventListener("click", () => loadRegions());
+
+    instancesGrid.addEventListener("click", e => {
+      const row = e.target.closest("[data-instance-id]");
+      if (!row || !instancesGrid.contains(row)) return;
+      const id = row.getAttribute("data-instance-id");
+      if (!id) return;
+      topologySelectedInstanceId = id;
+      renderInstanceRows(viewInstances);
+      renderTopology(viewInstances, viewRegion, viewAccount, topologySelectedInstanceId);
+    });
+
+    instancesGrid.addEventListener("keydown", e => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const row = e.target.closest("[data-instance-id]");
+      if (!row || !instancesGrid.contains(row)) return;
+      e.preventDefault();
+      row.click();
+    });
 
     (async () => {
       await loadRegions();
