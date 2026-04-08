@@ -112,6 +112,7 @@ def get_instance_details(ec2_client, instance_ids):
                 details[iid] = {
                     "instance_type": inst.get("InstanceType") or "unknown",
                     "tags": tags,
+                    "ec2_state": (inst.get("State") or {}).get("Name") or "unknown",
                 }
     except Exception as e:
         logger.warning(f"DescribeInstances failed: {e}")
@@ -166,6 +167,7 @@ def parse_discovery_output(output_str, instance_id, account_id, region, instance
     inst_info = instance_details.get(instance_id, {})
     instance_type = inst_info.get("instance_type", "unknown")
     tags = inst_info.get("tags", {})
+    ec2_state = inst_info.get("ec2_state", "unknown")
 
     records = []
     if not output_str or not output_str.strip():
@@ -216,6 +218,7 @@ def parse_discovery_output(output_str, instance_id, account_id, region, instance
             "tags": tags,
             "discovery_timestamp": datetime.utcnow().isoformat() + "Z",
             "discovery_status": "success",
+            "ec2_state": ec2_state,
         }
         records.append(record)
 
@@ -236,6 +239,7 @@ def parse_discovery_output(output_str, instance_id, account_id, region, instance
             "tags": tags,
             "discovery_timestamp": datetime.utcnow().isoformat() + "Z",
             "discovery_status": "success",
+            "ec2_state": ec2_state,
         })
 
     return records
@@ -335,6 +339,7 @@ def lambda_handler(event, context):
                         "discovery_timestamp": datetime.utcnow().isoformat() + "Z",
                         "discovery_status": "failed",
                         "region": region,
+                        "ec2_state": inst_info.get("ec2_state", "unknown"),
                         "error": ir.get("error", status),
                     })
 

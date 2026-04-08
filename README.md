@@ -1,6 +1,6 @@
 # Task_02: Database Discovery on EC2 Across AWS Accounts
 
-**Discover all databases installed on EC2 instances across multiple AWS accounts and expose via API.**
+**Discover databases (MySQL, PostgreSQL, MongoDB) on EC2 across AWS accounts — no SSH — and expose results via a REST API and optional web UI.**
 
 > **Confidentiality Notice:** This project is confidential and proprietary to AIRBUS. Unauthorized distribution, disclosure, or use is strictly prohibited.
 
@@ -8,57 +8,82 @@
 [![Python](https://img.shields.io/badge/Python-3.11-blue)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+**Repository:** [github.com/BSTushar/Task02_AB](https://github.com/BSTushar/Task02_AB)
+
 ---
 
 ## Overview
 
-This proof-of-concept discovers databases (MySQL, PostgreSQL, MongoDB) installed on EC2 instances across AWS accounts, captures type, version, database sizing, system sizing, **EC2 instance type (t-shirt size)**, and **instance tags**, and exposes the results via a REST API.
+This proof-of-concept runs a **read-only** probe on **SSM-managed Linux** instances (per account/region), collects engine metadata (type, version, sizing hints, tags, instance type), writes a **single S3 snapshot** (`discovery/inventory.json` by default), and serves it through **API Gateway + Lambda**.
 
 ### Key Features
 
-- **Cross-account discovery** — Hub-and-spoke model with STS AssumeRole
-- **No SSH** — Uses AWS Systems Manager (SSM) Run Command
-- **Read-only** — No database connections, no config modifications
-- **API exposed** — REST endpoints for dashboards, CMDB, compliance
+| Feature | Description |
+|--------|-------------|
+| **Cross-account** | Management account assumes **`DBDiscoverySpokeRole`** in spokes (STS). |
+| **No SSH** | **SSM Run Command** + custom document runs `discovery_python.py`. |
+| **FinOps-friendly store** | One JSON object per run in S3 (not per-row DynamoDB for this POC). |
+| **REST API** | Regions, accounts, instances grouped with DBs; **CORS** enabled for browsers. |
+| **Optional UI** | `inventory_ui.html` — region/account dashboard; set **`BASE_URL`** to your API stage. |
+| **Spoke bootstrap** | CloudFormation **StackSet** template under `automation/` for roles + SSM document. |
 
 ### Architecture
 
 ```
-Management Account                    Spoke Accounts
-┌─────────────────────┐              ┌──────────────────┐
-│ EventBridge         │              │ EC2 + SSM Agent  │
-│       ↓             │   AssumeRole │       ↓          │
-│ Discovery Lambda ───┼─────────────►│ SSM Run Command  │
-│       ↓             │              │       ↓          │
-│ S3 (inventory snapshot) ◄──────────┘ │ discovery_python │
-│       ↑                            └──────────────────┘
-│ API Gateway + Lambda (reads S3)
-└─────────────────────┘
+Management Account                           Spoke Accounts
+┌────────────────────────┐                  ┌─────────────────────────┐
+│ EventBridge (schedule) │                 │ EC2 (Linux) + SSM Agent │
+│          ↓             │   AssumeRole    │          ↓              │
+│  db-discovery Lambda ──┼────────────────►│  SSM SendCommand        │
+│          ↓             │                  │          ↓              │
+│  S3 : inventory.json   │                  │  discovery_python.py    │
+│          ↑             │                  └─────────────────────────┘
+│  db-discovery-api Lambda ◄── GET (read same S3 object)
+│          ↑
+│  API Gateway (HTTP/REST)
+└────────────────────────┘
 ```
 
 ---
 
 ## Quick Start
 
-1. **Clone & setup**
+1. **Clone**
    ```bash
    git clone https://github.com/BSTushar/Task02_AB.git
    cd Task02_AB
    ```
 
-2. **Follow setup** — [FULL_SETUP_IN_ORDER.md](FULL_SETUP_IN_ORDER.md) (S3 inventory, API, optional EventBridge schedule)
+2. **Deploy / configure** — Follow [FULL_SETUP_IN_ORDER.md](FULL_SETUP_IN_ORDER.md) (S3, Lambdas, API, IAM, spokes). Spoke bulk install: [automation/STACKSET_AUTOMATION.md](automation/STACKSET_AUTOMATION.md).
 
-3. **Run discovery**
+3. **Run discovery** (management profile, adjust function/region):
    ```bash
-   aws lambda invoke --function-name db-discovery --payload '{}' response.json
-   cat response.json
+   aws lambda invoke --function-name db-discovery --payload "{}" response.json --cli-binary-format raw-in-base64-out
+   type response.json    # Windows
    ```
 
-4. **Call API**
+4. **Call the API** (replace host with your `execute-api` URL and stage):
    ```bash
-   curl https://YOUR_API_ID.execute-api.eu-west-1.amazonaws.com/prod/health
-   curl https://YOUR_API_ID.execute-api.eu-west-1.amazonaws.com/prod/accounts
+   curl "https://YOUR_API_ID.execute-api.REGION.amazonaws.com/prod/health"
+   curl "https://YOUR_API_ID.execute-api.REGION.amazonaws.com/prod/regions"
+   curl "https://YOUR_API_ID.execute-api.REGION.amazonaws.com/prod/accounts?region=ap-south-1"
+   curl "https://YOUR_API_ID.execute-api.REGION.amazonaws.com/prod/accounts/123456789012/instances?region=ap-south-1"
    ```
+
+5. **Optional UI** — Open `inventory_ui.html` locally or host statically; set **`BASE_URL`** at the top of the file to the same API **stage URL** (no trailing slash).
+
+---
+
+## Documentation Map
+
+| Document | Purpose |
+|----------|---------|
+| [FULL_SETUP_IN_ORDER.md](FULL_SETUP_IN_ORDER.md) | Step-by-step setup (console-oriented) |
+| [COST_AND_STOP_RESOURCES.md](COST_AND_STOP_RESOURCES.md) | Stop EC2, disable EventBridge, teardown notes |
+| [DEMO_RUNBOOK_FRIDAY.md](DEMO_RUNBOOK_FRIDAY.md) | Demo-day checklist, architecture pitch, Q&A (new account / new EC2) |
+| [automation/STACKSET_AUTOMATION.md](automation/STACKSET_AUTOMATION.md) | StackSet create/update, OU vs account targets |
+| [api/api-gateway-config.md](api/api-gateway-config.md) | Example routes and curl |
+| [automation/TIER3_RESEARCH_SHEET.md](automation/TIER3_RESEARCH_SHEET.md) | Tier 3 / automation research notes |
 
 ---
 
@@ -66,35 +91,36 @@ Management Account                    Spoke Accounts
 
 | Path | Description |
 |------|-------------|
-| `iam/` | IAM policies (trust, spoke role, Lambda roles, EC2 instance) |
-| `ssm/` | Discovery script (`discovery_python.py`) and SSM document |
-| `lambda/` | Discovery handler and API handler |
-| `schema/` | Example discovery record shape (`example-record.json`) |
-| `api/` | API Gateway config and curl examples |
-| `automation/` | StackSet template + commands to bootstrap spoke accounts |
-| `inventory_ui.html` | Optional region/account dashboard (set `BASE_URL`) |
-| `FULL_SETUP_IN_ORDER.md` | Step-by-step setup (Console) |
-| `COST_AND_STOP_RESOURCES.md` | Cost tips and tidy-up |
+| `iam/` | IAM policies (trust, spoke role, Lambda, EC2 instance profile) |
+| `ssm/` | `discovery_python.py`, SSM document JSON |
+| `lambda/` | `discovery_handler.py`, `api_handler.py`, `lambda_function.py` (zip entry shim) |
+| `schema/` | Example inventory record shape |
+| `api/` | API Gateway notes |
+| `automation/` | `spoke-bootstrap-stackset.yaml`, `recreate-stackset.ps1`, docs |
+| `inventory_ui.html` | Browser dashboard (CORS + `BASE_URL`) |
 
 ---
 
-## API Endpoints
+## API Summary
 
-| Method | Endpoint | Description |
+Lambda returns **CORS** headers and handles **OPTIONS** for browser clients.
+
+| Method | Resource | Description |
 |--------|----------|-------------|
-| GET | `/health` | Health, record count, `store: s3` |
-| GET | `/regions` | Regions in current snapshot |
-| GET | `/regions/{region}/accounts` | Accounts with data in that region |
-| GET | `/accounts` | List accounts with discovery data |
-| GET | `/accounts/{accountId}` | Flat list of records for that account |
-| GET | `/accounts/{accountId}/instances` | Instances + DBs; optional `?region=` |
-| GET | `/databases` | All rows (optional: `?engine=`, `?account_id=`) |
+| GET | `/health` | Status and record count |
+| GET | `/` or `/{stage}` | Small service index |
+| GET | `/regions` | Distinct regions in the current S3 snapshot |
+| GET | `/accounts` | All account IDs in snapshot, or filter with **`?region=`** (used by `inventory_ui.html`) |
+| GET | `/regions/{region}/accounts` | Accounts that have rows in that region *(if this path is deployed on API Gateway)* |
+| GET | `/accounts/{accountId}` | Flat records; optional **`?region=`** |
+| GET | `/accounts/{accountId}/instances` | Instances + `databases[]`; **`?region=`** recommended |
+| GET | `/databases` | All rows; optional **`?engine=`**, **`?account_id=`** |
 
-Full REST API reference (request/response fields): [api/api-gateway-config.md](api/api-gateway-config.md)
+> **Note:** If API Gateway only exposes a subset of paths, prefer **`GET /accounts?region=`** for region-scoped account lists — the Lambda supports it even when nested `/regions/.../accounts` is not wired.
 
-Spoke bootstrap automation: [automation/STACKSET_AUTOMATION.md](automation/STACKSET_AUTOMATION.md)
+Full detail: [api/api-gateway-config.md](api/api-gateway-config.md)
 
-### Example Response
+### Example (`/instances` grouped)
 
 ```json
 {
@@ -121,45 +147,45 @@ Spoke bootstrap automation: [automation/STACKSET_AUTOMATION.md](automation/STACK
 
 ---
 
-## Prerequisites
+## Discovery Lambda (high level)
 
-- AWS CLI configured
-- **Hub** account (Lambda, S3, API) plus **one or more spoke account IDs** in `SPOKE_ACCOUNTS`, *or* the same account ID for a single-account / multi-region demo
-- EC2 instances with SSM agent (managed instances; **Fleet Manager Online**)
-- Python 3.11 (for Lambda)
+| Env var | Role |
+|---------|------|
+| `SPOKE_ACCOUNTS` | Comma-separated spoke IDs (manual list) |
+| `DISCOVERY_REGIONS` | Regions to scan per account |
+| `DISCOVER_ALL_ORG_ACCOUNTS` | If `true`, merge org member accounts (management account) |
+| `ORG_SKIP_MANAGEMENT_ACCOUNT`, `ORG_EXCLUDE_ACCOUNT_IDS` | Optional filters |
+| `RESULTS_S3_BUCKET`, `RESULTS_S3_KEY` | Snapshot location |
+| `SPOKE_ROLE_NAME`, `SSM_DOCUMENT` | Assume role name and SSM document name |
+
+After each run, the **API** reads the latest object — no separate database sync.
 
 ---
 
-## Configuration
+## Prerequisites
 
-Replace these placeholders before deployment:
-
-| Placeholder | Description |
-|-------------|-------------|
-| `MANAGEMENT_ACCOUNT_ID` | Management account ID |
-| `SPOKE_ACCOUNT_1_ID`, `SPOKE_ACCOUNT_2_ID` | Member account IDs |
-| `YOUR_BUCKET_NAME` | S3 bucket (script under `ssm/`; inventory JSON under `discovery/` by default) |
-| `YOUR_API_ID` | API Gateway ID |
+- AWS CLI configured for **management** (and console access for spokes as needed)
+- Spokes: **`DBDiscoverySpokeRole`** + EC2 instance profile with **SSM**; instances **Online** in Fleet Manager
+- **Linux** probe path (Windows instances are not targeted by the current listing filter)
 
 ---
 
 ## Limitations
 
-- Only SSM-managed instances
-- MySQL, PostgreSQL, MongoDB only
-- Batch discovery (not real-time)
-- Configure regions via `DISCOVERY_REGIONS` on the discovery Lambda
-- No RDS/Aurora; no container discovery
+- **SSM-managed** instances only; probe must complete within command timeout
+- Engines: **MySQL, PostgreSQL, MongoDB** (script-defined)
+- **Snapshot / batch** model — not live streaming; re-run Lambda or schedule for updates
+- **No** RDS/Aurora/ECS discovery in this POC
 
 ---
 
 ## Authors
 
-- **BSTushar** — [GitHub](https://github.com/BSTushar)
-- Airbus Cloud Intern Project — Task_02
+- **Tushar Bapu Shashikumar** ([@BSTushar](https://github.com/BSTushar)) — *tusharsabapu@gmail.com*  
+- Airbus Cloud Intern Project — **Task_02**
 
 ---
 
 ## License
 
-Badge above is informational; redistribution is subject to the **Confidentiality Notice** at the top of this README and your organization’s rules. There is no separate `LICENSE` file in the repository.
+The badge above is informational. Redistribution is subject to the **Confidentiality Notice** at the top of this README and your organization’s policies. There is no separate `LICENSE` file in the repository.

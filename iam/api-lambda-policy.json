@@ -20,6 +20,12 @@
         "logs:PutLogEvents"
       ],
       "Resource": "arn:aws:logs:*:*:*"
+    },
+    {
+      "Sid": "AssumeSpokeRoleForEc2StateEnrich",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::*:role/DBDiscoverySpokeRole"
     }
   ]
 }

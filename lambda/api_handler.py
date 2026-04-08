@@ -20,6 +20,9 @@ AWS_REGION = os.environ.get("AWS_REGION", "ap-south-1")
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
 RESULTS_S3_BUCKET = os.environ.get("RESULTS_S3_BUCKET", "") or S3_BUCKET
 RESULTS_S3_KEY = os.environ.get("RESULTS_S3_KEY", "discovery/inventory.json")
+SPOKE_ROLE_NAME = os.environ.get("SPOKE_ROLE_NAME", "DBDiscoverySpokeRole")
+# Live EC2 state for /instances (red/green UI). Requires API Lambda IAM: sts:AssumeRole on spoke role.
+API_ENRICH_EC2_STATE = os.environ.get("API_ENRICH_EC2_STATE", "true").lower() in ("1", "true", "yes")
 
 
 def http_response(status_code, body, is_json=True):
@@ -91,6 +94,8 @@ def group_by_instance(items):
                 "system_memory_mb": 0,
                 "system_cpu_cores": 0,
             }
+        if i.get("ec2_state"):
+            by_instance[inst]["ec2_state"] = i["ec2_state"]
         if i.get("db_id") and i["db_id"] not in ("none", "discovery_failed"):
             by_instance[inst]["databases"].append({
                 "db_id": i.get("db_id"),
@@ -107,6 +112,53 @@ def group_by_instance(items):
         by_instance[inst]["discovery_timestamp"] = i.get("discovery_timestamp")
         by_instance[inst]["discovery_status"] = i.get("discovery_status")
     return list(by_instance.values())
+
+
+def _get_spoke_ec2_client(account_id, region):
+    sts = boto3.client("sts")
+    role_arn = f"arn:aws:iam::{account_id}:role/{SPOKE_ROLE_NAME}"
+    assumed = sts.assume_role(RoleArn=role_arn, RoleSessionName="dbdiscoveryApiEc2Enrich")
+    c = assumed["Credentials"]
+    return boto3.client(
+        "ec2",
+        region_name=region,
+        aws_access_key_id=c["AccessKeyId"],
+        aws_secret_access_key=c["SecretAccessKey"],
+        aws_session_token=c["SessionToken"],
+    )
+
+
+def enrich_instances_ec2_state(instances, account_id, region):
+    """Attach current EC2 state (running/stopped/...) for each instance row."""
+    if not API_ENRICH_EC2_STATE or not instances or not account_id or not region:
+        return
+    ids = []
+    for row in instances:
+        iid = row.get("instance_id")
+        if iid and isinstance(iid, str) and iid.startswith("i-"):
+            ids.append(iid)
+    if not ids:
+        return
+    ids = list(dict.fromkeys(ids))
+    try:
+        ec2 = _get_spoke_ec2_client(account_id, region)
+        state_by_id = {}
+        for start in range(0, len(ids), 100):
+            chunk = ids[start : start + 100]
+            resp = ec2.describe_instances(InstanceIds=chunk)
+            for res in resp.get("Reservations", []):
+                for inst in res.get("Instances", []):
+                    iid = inst.get("InstanceId")
+                    if iid:
+                        state_by_id[iid] = (inst.get("State") or {}).get("Name") or "unknown"
+        for row in instances:
+            iid = row.get("instance_id")
+            if iid in state_by_id:
+                row["ec2_state"] = state_by_id[iid]
+    except ClientError as e:
+        logger.warning("EC2 state enrich failed (IAM?): %s", e)
+    except Exception as e:
+        logger.warning("EC2 state enrich failed: %s", e)
 
 
 def _request_path(event):
@@ -252,6 +304,7 @@ def lambda_handler(event, context):
                 items = [i for i in items if isinstance(i, dict) and i.get("region") == region_filter]
             if "/instances" in path or path.endswith(account_id):
                 grouped = group_by_instance(items)
+                enrich_instances_ec2_state(grouped, account_id, region_filter)
                 return http_response(200, to_json_serializable({"account_id": account_id, "instances": grouped}))
             return http_response(200, to_json_serializable({"account_id": account_id, "records": items}))
 
