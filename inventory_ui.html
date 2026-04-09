@@ -531,6 +531,52 @@
           No data for this selection. Try another region/account or re-run discovery.
         </div>
       </section>
+
+      <!-- Global Brain (all regions/accounts) -->
+      <section class="py-8 pb-16 border-t border-white/[0.06]">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div class="flex items-center gap-2">
+            <span class="w-[3px] h-[18px] rounded-sm section-accent-bar-reverse"></span>
+            <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Global inventory brain</h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="sr-only" for="globalScopeSelect">Global scope</label>
+            <select id="globalScopeSelect" class="story-select h-9 min-w-[13rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
+              <option value="current">Current account (selected region + account)</option>
+              <option value="region">Current region (all accounts in region)</option>
+              <option value="main">Main (all regions + all accounts)</option>
+            </select>
+            <button id="globalLoadBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/20 bg-white/[0.06] text-slate-200 hover:bg-white/[0.1]">
+              Load data
+            </button>
+            <button id="downloadCsvBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              Download CSV
+            </button>
+            <button id="downloadExcelBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              Download Excel
+            </button>
+          </div>
+        </div>
+        <p id="globalMeta" class="text-[11px] text-slate-400 m-0 mb-3">Choose scope, then click <strong class="text-slate-200">Load data</strong> to build an exportable dataset.</p>
+
+        <div class="rounded-xl overflow-hidden border border-white/[0.06] bg-white/[0.03] glass-surface shadow-[0_20px_64px_-40px_rgba(0,0,0,0.5)]">
+          <div class="hidden md:grid md:grid-cols-[0.9fr_1fr_1.4fr_1.1fr_1fr_1fr_1.2fr_1.1fr_0.8fr] gap-0 text-[10px] tracking-widest uppercase text-slate-400 border-b border-white/[0.06]">
+            <div class="px-3 py-2.5">Region</div>
+            <div class="px-3 py-2.5">Account</div>
+            <div class="px-3 py-2.5">Instance</div>
+            <div class="px-3 py-2.5">Instance Name</div>
+            <div class="px-3 py-2.5">EC2 State</div>
+            <div class="px-3 py-2.5">Engine</div>
+            <div class="px-3 py-2.5">DB ID / Version</div>
+            <div class="px-3 py-2.5">Discovery</div>
+            <div class="px-3 py-2.5">Port</div>
+          </div>
+          <div id="globalRows" class="max-h-[420px] overflow-auto divide-y divide-white/[0.06]"></div>
+        </div>
+        <div id="globalEmpty" class="mt-4 text-center text-sm text-slate-300 px-4 py-7 border border-dashed border-white/15 rounded-xl bg-white/[0.02]">
+          No global dataset loaded yet.
+        </div>
+      </section>
     </div>
     </main>
 
@@ -596,10 +642,18 @@
     const engineCardsEmpty = document.getElementById("engineCardsEmpty");
     const topologySvg = document.getElementById("topologySvg");
     const topologyEmpty = document.getElementById("topologyEmpty");
+    const globalLoadBtn = document.getElementById("globalLoadBtn");
+    const globalScopeSelect = document.getElementById("globalScopeSelect");
+    const downloadCsvBtn = document.getElementById("downloadCsvBtn");
+    const downloadExcelBtn = document.getElementById("downloadExcelBtn");
+    const globalRowsEl = document.getElementById("globalRows");
+    const globalEmptyEl = document.getElementById("globalEmpty");
+    const globalMetaEl = document.getElementById("globalMeta");
 
     let viewInstances = [];
     let viewRegion = "";
     let viewAccount = "";
+    let globalBrainRows = [];
     /** null = default focus (first instance with DBs, else first row) */
     let topologySelectedInstanceId = null;
 
@@ -1079,6 +1133,190 @@
       return entries.map(([k, v]) => `${k}=${v}`).join(", ");
     }
 
+    function toGlobalRows(instances, region, accountId) {
+      const out = [];
+      (instances || []).forEach(inst => {
+        const dbs = inst.databases || [];
+        const base = {
+          region: region || "unknown",
+          account_id: accountId || "unknown",
+          instance_id: inst.instance_id || "unknown",
+          instance_name: tagName(inst.tags) || "",
+          instance_type: inst.instance_type || "unknown",
+          ec2_state: inst.ec2_state || "",
+          discovery_status: inst.discovery_status || "unknown",
+          tags: formatTags(inst.tags),
+        };
+        if (!dbs.length) {
+          out.push({
+            ...base,
+            db_id: "none",
+            engine: "none",
+            version: "",
+            db_status: "",
+            port: 0,
+            data_size_mb: 0,
+          });
+          return;
+        }
+        dbs.forEach(db => {
+          out.push({
+            ...base,
+            db_id: db.db_id || "",
+            engine: db.engine || "",
+            version: db.version || "",
+            db_status: db.status || "",
+            port: db.port || 0,
+            data_size_mb: db.data_size_mb || 0,
+          });
+        });
+      });
+      return out;
+    }
+
+    function csvValue(v) {
+      const s = v == null ? "" : String(v);
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+
+    function globalHeaders() {
+      return [
+        "region",
+        "account_id",
+        "instance_id",
+        "instance_name",
+        "instance_type",
+        "ec2_state",
+        "discovery_status",
+        "db_id",
+        "engine",
+        "version",
+        "db_status",
+        "port",
+        "data_size_mb",
+        "tags",
+      ];
+    }
+
+    function renderGlobalBrain(rows) {
+      globalBrainRows = rows || [];
+      const regions = new Set(globalBrainRows.map(r => r.region)).size;
+      const accounts = new Set(globalBrainRows.map(r => r.account_id)).size;
+      const hosts = new Set(globalBrainRows.map(r => r.instance_id)).size;
+      globalMetaEl.textContent = `${globalBrainRows.length} row(s) · ${hosts} instance(s) · ${accounts} account(s) · ${regions} region(s)`;
+
+      if (!globalBrainRows.length) {
+        globalRowsEl.innerHTML = "";
+        globalEmptyEl.classList.remove("hidden");
+        downloadCsvBtn.disabled = true;
+        downloadExcelBtn.disabled = true;
+        return;
+      }
+
+      globalEmptyEl.classList.add("hidden");
+      downloadCsvBtn.disabled = false;
+      downloadExcelBtn.disabled = false;
+      globalRowsEl.innerHTML = globalBrainRows.map((r, idx) => `
+        <div class="md:grid md:grid-cols-[0.9fr_1fr_1.4fr_1.1fr_1fr_1fr_1.2fr_1.1fr_0.8fr] gap-0 text-xs border-b border-white/[0.04] last:border-b-0 ${idx % 2 ? "bg-white/[0.02]" : ""}">
+          <div class="px-3 py-2.5 text-slate-300 font-mono">${escapeHtml(r.region)}</div>
+          <div class="px-3 py-2.5 text-slate-300 font-mono">${escapeHtml(r.account_id)}</div>
+          <div class="px-3 py-2.5 text-slate-200 font-mono break-all">${escapeHtml(r.instance_id)}</div>
+          <div class="px-3 py-2.5 text-slate-200">${escapeHtml(r.instance_name || "—")}</div>
+          <div class="px-3 py-2.5 text-slate-300">${escapeHtml(r.ec2_state || "—")}</div>
+          <div class="px-3 py-2.5 text-slate-200">${escapeHtml(r.engine || "—")}</div>
+          <div class="px-3 py-2.5 text-slate-300">${escapeHtml(r.db_id || "—")}${r.version ? `<span class="text-slate-500"> · ${escapeHtml(r.version)}</span>` : ""}</div>
+          <div class="px-3 py-2.5 text-slate-300">${escapeHtml(r.discovery_status || "—")}</div>
+          <div class="px-3 py-2.5 text-slate-300">${escapeHtml(String(r.port || 0))}</div>
+        </div>
+      `).join("");
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadGlobalCsv() {
+      if (!globalBrainRows.length) return;
+      const headers = globalHeaders();
+      const lines = [headers.join(",")];
+      globalBrainRows.forEach(r => {
+        lines.push(headers.map(h => csvValue(r[h])).join(","));
+      });
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+      downloadBlob(blob, `global_inventory_${new Date().toISOString().slice(0, 10)}.csv`);
+    }
+
+    function downloadGlobalExcel() {
+      if (!globalBrainRows.length) return;
+      const headers = globalHeaders();
+      const th = headers.map(h => `<th>${escapeHtml(h)}</th>`).join("");
+      const tr = globalBrainRows.map(r => `<tr>${headers.map(h => `<td>${escapeHtml(r[h] == null ? "" : String(r[h]))}</td>`).join("")}</tr>`).join("");
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></body></html>`;
+      const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+      downloadBlob(blob, `global_inventory_${new Date().toISOString().slice(0, 10)}.xls`);
+    }
+
+    async function loadGlobalBrain() {
+      const scope = (globalScopeSelect && globalScopeSelect.value) || "main";
+      const scopeLabel =
+        scope === "current"
+          ? "current account"
+          : scope === "region"
+          ? "current region"
+          : "all regions + accounts";
+      globalLoadBtn.disabled = true;
+      globalLoadBtn.textContent = "Loading…";
+      globalMetaEl.textContent = `Scanning ${scopeLabel} from API…`;
+      try {
+        const allRows = [];
+
+        if (scope === "current") {
+          const region = regionSelect.value;
+          const accountId = accountSelect.value;
+          if (!region || !accountId) throw new Error("Select region and account first.");
+          const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
+          allRows.push(...toGlobalRows(data.instances || [], region, accountId));
+        } else if (scope === "region") {
+          const region = regionSelect.value;
+          if (!region) throw new Error("Select a region first.");
+          const accData = await fetchJson(`${BASE_URL}/accounts?region=${encodeURIComponent(region)}`);
+          const accounts = accData.accounts || [];
+          for (const accountId of accounts) {
+            const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
+            allRows.push(...toGlobalRows(data.instances || [], region, accountId));
+          }
+        } else {
+          const regData = await fetchJson(`${BASE_URL}/regions`);
+          const regions = regData.regions || [];
+          for (const region of regions) {
+            const accData = await fetchJson(`${BASE_URL}/accounts?region=${encodeURIComponent(region)}`);
+            const accounts = accData.accounts || [];
+            for (const accountId of accounts) {
+              const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
+              allRows.push(...toGlobalRows(data.instances || [], region, accountId));
+            }
+          }
+        }
+
+        renderGlobalBrain(allRows);
+        setStatus(`Global inventory ready for ${scopeLabel} (${allRows.length} flattened row(s)).`, "success");
+      } catch (e) {
+        console.error(e);
+        globalMetaEl.textContent = "Failed to build global inventory.";
+        setStatus("Failed loading global inventory.", "error");
+      } finally {
+        globalLoadBtn.disabled = false;
+        globalLoadBtn.textContent = "Load data";
+      }
+    }
+
     async function loadRegions() {
       setBadge("Loading regions…", "warn");
       setStatus("Fetching /regions from API.");
@@ -1201,6 +1439,9 @@
     regionSelect.addEventListener("change", () => loadAccounts());
     accountSelect.addEventListener("change", () => loadInstances());
     refreshBtn.addEventListener("click", () => loadRegions());
+    globalLoadBtn.addEventListener("click", () => loadGlobalBrain());
+    downloadCsvBtn.addEventListener("click", () => downloadGlobalCsv());
+    downloadExcelBtn.addEventListener("click", () => downloadGlobalExcel());
 
     instancesGrid.addEventListener("click", e => {
       const row = e.target.closest("[data-instance-id]");

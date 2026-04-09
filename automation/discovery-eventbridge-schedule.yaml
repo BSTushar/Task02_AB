@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  EventBridge rule on a schedule to invoke the db-discovery Lambda and refresh the S3
+  inventory snapshot. Deploy in the management account after db-discovery exists.
+
+Parameters:
+  DiscoveryLambdaArn:
+    Type: String
+    Description: >-
+      Full ARN of the discovery Lambda. Example: aws lambda get-function
+      --function-name db-discovery --query Configuration.FunctionArn --output text
+
+  ScheduleExpression:
+    Type: String
+    Default: rate(1 day)
+    Description: >-
+      EventBridge schedule expression, e.g. rate(1 day), rate(6 hours), cron(0 6 * * ? *)
+
+  RuleName:
+    Type: String
+    Default: db-discovery-inventory-schedule
+    Description: Name of the EventBridge rule (must be unique per region/account)
+
+  RuleState:
+    Type: String
+    Default: ENABLED
+    AllowedValues:
+      - ENABLED
+      - DISABLED
+    Description: Use DISABLED to pause runs without deleting the stack
+
+Resources:
+  DiscoveryScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Ref RuleName
+      Description: Periodic db-discovery run - refreshes discovery/inventory.json in S3
+      State: !Ref RuleState
+      ScheduleExpression: !Ref ScheduleExpression
+      Targets:
+        - Id: DiscoveryLambdaTarget
+          Arn: !Ref DiscoveryLambdaArn
+
+  AllowEventBridgeInvokeDiscovery:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DiscoveryLambdaArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DiscoveryScheduleRule.Arn
+
+Outputs:
+  RuleName:
+    Description: EventBridge rule name
+    Value: !Ref RuleName
+  RuleArn:
+    Description: EventBridge rule ARN
+    Value: !GetAtt DiscoveryScheduleRule.Arn

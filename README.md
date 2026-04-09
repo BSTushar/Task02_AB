@@ -82,6 +82,7 @@ Management Account                           Spoke Accounts
 | [COST_AND_STOP_RESOURCES.md](COST_AND_STOP_RESOURCES.md) | Stop EC2, disable EventBridge, teardown notes |
 | [DEMO_RUNBOOK_FRIDAY.md](DEMO_RUNBOOK_FRIDAY.md) | Demo-day checklist, architecture pitch, Q&A (new account / new EC2) |
 | [automation/STACKSET_AUTOMATION.md](automation/STACKSET_AUTOMATION.md) | StackSet create/update, OU vs account targets |
+| [automation/EVENTBRIDGE_DISCOVERY_SCHEDULE.md](automation/EVENTBRIDGE_DISCOVERY_SCHEDULE.md) | Deploy EventBridge schedule → `db-discovery` (IaC) |
 | [api/api-gateway-config.md](api/api-gateway-config.md) | Example routes and curl |
 | [automation/TIER3_RESEARCH_SHEET.md](automation/TIER3_RESEARCH_SHEET.md) | Tier 3 / automation research notes |
 
@@ -96,7 +97,7 @@ Management Account                           Spoke Accounts
 | `lambda/` | `discovery_handler.py`, `api_handler.py`, `lambda_function.py` (zip entry shim) |
 | `schema/` | Example inventory record shape |
 | `api/` | API Gateway notes |
-| `automation/` | `spoke-bootstrap-stackset.yaml`, `recreate-stackset.ps1`, docs |
+| `automation/` | StackSet template, `discovery-eventbridge-schedule.yaml`, docs |
 | `inventory_ui.html` | Browser dashboard (CORS + `BASE_URL`) |
 
 ---
