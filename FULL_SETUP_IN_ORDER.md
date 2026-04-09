@@ -204,10 +204,17 @@ Browser or curl:
 
 ## Step 12 — EventBridge schedule (no manual Test)
 
+**Option A — Console**
+
 1. **Amazon EventBridge** → **Rules** → **Create rule**.
 2. **Schedule** expression e.g. `rate(1 day)` or `cron(0 6 * * ? *)` (daily 06:00 UTC).
 3. **Target:** **AWS Lambda** → **`db-discovery`**.
 4. **Add permission** when prompted so EventBridge can invoke the Lambda.
+
+**Option B — CloudFormation (repeatable)**
+
+- Template: **`automation/discovery-eventbridge-schedule.yaml`**
+- Commands and parameters: **[automation/EVENTBRIDGE_DISCOVERY_SCHEDULE.md](automation/EVENTBRIDGE_DISCOVERY_SCHEDULE.md)**
 
 New EC2 instances (SSM Online) appear on the **next** scheduled run. New **accounts** still require adding **`SPOKE_ACCOUNTS`** (and spoke IAM setup).
 
@@ -237,7 +244,7 @@ If you onboard many spokes, automate setup with CloudFormation StackSets from th
 | 5 | 9 | Lambda db-discovery-api + env | Management |
 | 5 | 10 | API Gateway + deploy | Management |
 | 5 | 11 | curl / browser / inventory UI | Management |
-| 6 | 12 | (Optional) EventBridge → db-discovery | Management |
+| 6 | 12 | (Optional) EventBridge → db-discovery (console or `automation/discovery-eventbridge-schedule.yaml`) | Management |
 | 6 | 13 | (Optional) StackSet spoke bootstrap | Management |
 
 ---
