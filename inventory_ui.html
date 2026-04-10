@@ -383,9 +383,11 @@
       </svg>
 
       <div class="relative z-10 w-full max-w-6xl mx-auto px-6 md:px-8">
-        <div class="flex items-center gap-2.5 mb-3" style="animation: fadeInUp 1.35s var(--ease-butter) forwards;">
+        <div class="flex items-center gap-2.5 mb-3 flex-wrap" style="animation: fadeInUp 1.35s var(--ease-butter) forwards;">
           <span class="hero-snapshot-dot w-2 h-2 rounded-full shrink-0"></span>
-          <span class="hero-snapshot-label text-[11px] tracking-[0.2em] uppercase font-semibold">Snapshot from API</span>
+          <span id="heroDataSourceLine" class="hero-snapshot-label text-[11px] tracking-wide font-semibold text-slate-200">
+            <span class="text-emerald-300/90">Live</span><span class="text-slate-500 font-normal"> · </span><span class="text-slate-400 font-normal uppercase tracking-[0.18em]">Inventory from your API</span>
+          </span>
         </div>
         <h1 class="text-[clamp(1.375rem,5vw,2.5rem)] font-bold m-0 mb-2 gradient-title" style="animation: fadeInUp 1.5s var(--ease-butter) 0.2s both, titleShine 8s var(--ease-butter-in-out) 1.6s infinite;">Database Discovery</h1>
         <p class="text-sm text-slate-300 m-0 max-w-2xl leading-relaxed" style="animation: fadeInUp 1.5s var(--ease-butter) 0.35s both;">
@@ -410,18 +412,28 @@
             <label class="sr-only" for="regionSelect">AWS region</label>
             <select id="regionSelect" class="story-select h-10 min-w-[11rem] rounded-full pl-4 pr-9 text-[13px] leading-none cursor-pointer"></select>
             <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] pointer-events-none leading-none">▼</span>
-          </div>
+      </div>
           <div class="relative inline-flex items-center h-10 shrink-0">
             <label class="sr-only" for="accountSelect">Account</label>
             <select id="accountSelect" class="story-select h-10 min-w-[16.5rem] max-w-[min(100vw-2rem,22rem)] rounded-full pl-4 pr-9 text-[13px] leading-none cursor-pointer"></select>
             <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] pointer-events-none leading-none">▼</span>
-          </div>
+      </div>
           <button id="refreshBtn" type="button" class="inline-flex items-center justify-center h-10 rounded-full px-5 text-[13px] font-semibold leading-none cursor-pointer shrink-0 disabled:opacity-45 disabled:cursor-not-allowed">
             ↻ Reload from API
           </button>
           <span id="statusBadge" class="text-xs text-slate-300 self-center max-w-md min-h-[1.25rem] flex items-center"></span>
         </div>
-        <p id="mainPullLockStatus" class="mt-2 text-[11px] text-amber-200/90 min-h-[1.25rem] max-w-3xl m-0"></p>
+        <div id="mainLockStrip" class="mt-3 flex flex-col gap-2 max-w-3xl">
+          <div id="mainLockActiveRow" class="hidden flex flex-wrap items-center gap-3">
+            <span id="mainLockPill" class="inline-flex items-center gap-2 rounded-full border border-amber-400/55 bg-amber-950/40 px-3.5 py-2 text-[12px] text-amber-100 font-medium shadow-[0_0_24px_-10px_rgba(251,191,36,0.45)]">
+              <svg class="w-3.5 h-3.5 shrink-0 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5V11z"/></svg>
+              <span>API pull locked — <span id="mainLockCountdown" class="tabular-nums">00:00:00</span> remaining</span>
+            </span>
+            <button type="button" id="mainUnlockJumpBtn" class="text-[12px] text-sky-300 hover:text-sky-200 underline underline-offset-2 bg-transparent border-0 cursor-pointer p-0 font-medium">Unlock early →</button>
+          </div>
+          <p id="mainLockUnlockLine" class="hidden text-[11px] text-amber-200/85 m-0 leading-relaxed max-w-2xl"></p>
+          <p id="mainLockOpenHint" class="text-[11px] text-slate-400 m-0 leading-relaxed max-w-2xl">You're cleared to pull fresh data. <strong class="text-slate-300">Reload</strong> or Global <strong class="text-slate-300">Load data</strong> talks to the API; after a good pull, a shared <strong class="text-slate-300">6h 30m</strong> lock starts (optional safety token). That timer is stored in this browser — <strong class="text-slate-300">refresh does not reset it</strong>.</p>
+        </div>
         <div id="statusLine" class="mt-3 text-xs min-h-[2.5rem] text-slate-300 whitespace-pre-line max-w-3xl"></div>
       </div>
     </div>
@@ -458,57 +470,84 @@
       </div>
       </div>
 
-      <!-- Global Brain (all regions/accounts) -->
+      <!-- Global inventory -->
       <section class="py-8 pb-16 border-b border-white/[0.06]">
-        <div class="flex flex-col gap-3 mb-4">
-          <div class="flex items-center gap-2">
-            <span class="w-[3px] h-[18px] rounded-sm section-accent-bar-reverse"></span>
-            <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Global inventory brain</h2>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-[3px] h-[18px] rounded-sm section-accent-bar-reverse"></span>
+          <h2 class="text-[15px] font-semibold text-slate-100 tracking-wide m-0">Global inventory</h2>
+        </div>
+        <p class="text-[12px] text-slate-400 m-0 mb-6 max-w-2xl leading-relaxed">Pull a wider slice once — across regions or accounts — then refine here in the browser. <strong class="text-slate-300">No extra API calls</strong> after load (filters are instant). <strong class="text-slate-300">Reload</strong> and <strong class="text-slate-300">Load data</strong> share one safety timer: after a successful pull, both pause for <strong class="text-slate-300">6h 30m</strong> unless you unlock early.</p>
+
+        <div class="space-y-6 mb-5">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-600/95 text-[11px] font-bold text-white shadow-sm">1</span>
+              <span class="text-[12px] font-semibold text-slate-200">Choose scope &amp; load</span>
+            </div>
+            <div class="pl-8 flex flex-wrap items-center gap-2">
+              <label class="sr-only" for="globalScopeSelect">Global scope</label>
+              <select id="globalScopeSelect" class="story-select h-9 min-w-[14rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
+                <option value="current">This account (uses region + account above)</option>
+                <option value="region">This region (all accounts in region)</option>
+                <option value="main">Everything (all regions + all accounts)</option>
+              </select>
+              <button id="globalLoadBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/20 bg-white/[0.06] text-slate-200 hover:bg-white/[0.1] disabled:opacity-45 disabled:cursor-not-allowed">
+                Load data
+              </button>
+            </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <label class="sr-only" for="globalScopeSelect">Global scope</label>
-            <select id="globalScopeSelect" class="story-select h-9 min-w-[13rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
-              <option value="current">Current account (selected region + account)</option>
-              <option value="region">Current region (all accounts in region)</option>
-              <option value="main">Main (all regions + all accounts)</option>
-            </select>
-            <label class="sr-only" for="globalRegionFilterSelect">Global region filter</label>
-            <select id="globalRegionFilterSelect" class="story-select h-9 min-w-[11rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
-              <option value="all">Region: all</option>
-            </select>
-            <label class="sr-only" for="globalAccountFilterSelect">Global account filter</label>
-            <select id="globalAccountFilterSelect" class="story-select h-9 min-w-[13rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
-              <option value="all">Account: all</option>
-            </select>
-            <label class="sr-only" for="globalEngineFilterSelect">Global engine filter</label>
-            <select id="globalEngineFilterSelect" class="story-select h-9 min-w-[11rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
-              <option value="all">Engine: all</option>
-              <option value="postgresql">postgresql</option>
-              <option value="mysql">mysql</option>
-              <option value="mongodb">mongodb</option>
-              <option value="none">none</option>
-            </select>
-            <button id="globalLoadBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/20 bg-white/[0.06] text-slate-200 hover:bg-white/[0.1] disabled:opacity-45 disabled:cursor-not-allowed">
-              Load data
-            </button>
-            <input id="globalLockTokenInput" type="password" placeholder="Safety token (optional)" class="story-select h-9 min-w-[13rem] rounded-full px-3 text-[12px] leading-none" />
-            <button id="globalUnlockBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-              Unlock now
-            </button>
-            <button id="downloadCsvBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-              Download CSV
-            </button>
-            <button id="downloadExcelBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-              Download Excel
-            </button>
+
+          <div id="globalUnlockPanel" class="hidden ml-8 rounded-xl border border-amber-500/40 bg-amber-950/25 px-4 py-3">
+            <div class="flex items-start justify-between gap-3 mb-2">
+              <p class="text-[11px] text-amber-100/95 m-0 leading-snug">Enter the safety token you used when this lock started (leave blank if you did not set one).</p>
+              <button type="button" id="globalUnlockPanelHideBtn" class="shrink-0 text-[11px] text-slate-400 hover:text-slate-300 bg-transparent border-0 cursor-pointer p-0">Hide</button>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <input id="globalLockTokenInput" type="password" placeholder="Safety token" class="story-select h-9 min-w-[14rem] rounded-full px-3 text-[12px] leading-none" />
+              <button id="globalUnlockBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-amber-500/50 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed" disabled>Unlock</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-600/95 text-[11px] font-bold text-white shadow-sm">2</span>
+              <span class="text-[12px] font-semibold text-slate-200">Refine <span class="text-slate-500 font-normal">(client-side — no API)</span></span>
+            </div>
+            <div class="pl-8 flex flex-wrap items-center gap-2">
+              <label class="sr-only" for="globalRegionFilterSelect">Global region filter</label>
+              <select id="globalRegionFilterSelect" class="story-select h-9 min-w-[11rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
+                <option value="all">Region: all</option>
+              </select>
+              <label class="sr-only" for="globalAccountFilterSelect">Global account filter</label>
+              <select id="globalAccountFilterSelect" class="story-select h-9 min-w-[13rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
+                <option value="all">Account: all</option>
+              </select>
+              <label class="sr-only" for="globalEngineFilterSelect">Global engine filter</label>
+              <select id="globalEngineFilterSelect" class="story-select h-9 min-w-[11rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
+                <option value="all">Engine: all</option>
+                <option value="postgresql">postgresql</option>
+                <option value="mysql">mysql</option>
+                <option value="mongodb">mongodb</option>
+                <option value="none">none</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-600/95 text-[11px] font-bold text-white shadow-sm">3</span>
+              <span class="text-[12px] font-semibold text-slate-200">Export</span>
+            </div>
+            <div class="pl-8 flex flex-wrap items-center gap-2">
+              <button id="downloadCsvBtn" type="button" class="inline-flex items-center justify-center gap-1.5 h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <span aria-hidden="true">&#8681;</span> CSV
+              </button>
+              <button id="downloadExcelBtn" type="button" class="inline-flex items-center justify-center gap-1.5 h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <span aria-hidden="true">&#8681;</span> Excel
+              </button>
+            </div>
           </div>
         </div>
-        <div class="mb-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3">
-          <p class="text-[11px] text-slate-200 m-0"><strong>How to use:</strong> 1) Choose <strong>Scope</strong> (current/region/main), 2) click <strong>Load data</strong> once, 3) refine using Region/Account/Engine filters (no extra API calls), 4) use CSV/Excel export.</p>
-          <p class="text-[11px] text-slate-400 m-0 mt-2">Safety mode: one shared lock for <strong>Reload from API</strong> and <strong>Load data</strong> (new scope). After a successful pull, both are locked for <strong>6.5 hours</strong>. You can still filter already-loaded Global rows without new API calls.</p>
-        </div>
-        <p id="globalMeta" class="text-[11px] text-slate-400 m-0 mb-3">Choose scope and optional filters (region/account/engine), then click <strong class="text-slate-200">Load data</strong>.</p>
-        <p id="globalLockStatus" class="text-[11px] text-amber-200/90 m-0 mb-3"></p>
 
         <details class="mb-4 text-xs text-slate-300 border border-white/10 rounded-xl p-3 bg-white/[0.02]">
           <summary class="cursor-pointer text-slate-200 font-semibold">Try me — integration API filters</summary>
@@ -529,33 +568,36 @@
             <div class="px-3 py-2.5">DB ID / Version</div>
             <div class="px-3 py-2.5">Discovery</div>
             <div class="px-3 py-2.5">Port</div>
-          </div>
+      </div>
           <div id="globalRows" class="max-h-[420px] overflow-auto divide-y divide-white/[0.06]"></div>
-        </div>
+      </div>
         <div id="globalEmpty" class="mt-4 text-center text-sm text-slate-300 px-4 py-7 border border-dashed border-white/15 rounded-xl bg-white/[0.02]">
           No global dataset loaded yet.
         </div>
-      </section>
+
+        <p id="globalLockStatus" class="text-[11px] text-slate-400 m-0 mt-4 mb-2 min-h-[1.25rem] leading-relaxed"></p>
+        <p id="globalMeta" class="text-[11px] text-slate-400 m-0 mb-0 leading-relaxed border-t border-white/[0.06] pt-3">Run step 1 to load, then refine and export. This line shows <strong class="text-slate-300">Live</strong> vs <strong class="text-slate-300">Offline preview</strong>, when you last pulled, and when the next API pull is allowed if a lock is on.</p>
+    </section>
 
       <!-- Engine cards (storytelling style) -->
       <section class="py-8 border-b border-white/[0.06]">
         <div class="flex items-center gap-2 mb-6">
           <span class="w-[3px] h-[18px] rounded-sm section-accent-bar"></span>
           <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Databases by engine</h2>
-        </div>
+      </div>
         <p class="text-[11px] text-slate-300 -mt-4 mb-6 max-w-xl">Same filter as the table. Bars scale to the largest count in this view.</p>
         <div id="engineCardsEmpty" class="glass-surface text-center text-sm text-slate-200 py-12 border border-dashed border-white/15 rounded-2xl bg-white/[0.03]">
           No engines in this region + account — try another spoke or region (e.g. where your DB host runs).
         </div>
         <div id="engineCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 hidden"></div>
-      </section>
+    </section>
 
       <!-- Topology -->
       <section class="py-8 border-b border-white/[0.06]">
         <div class="flex items-center gap-2 mb-5">
           <span class="w-[3px] h-[18px] rounded-sm section-accent-bar-reverse"></span>
           <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Infrastructure topology</h2>
-        </div>
+      </div>
         <p class="text-[11px] text-slate-300 -mt-3 mb-4 max-w-2xl">Click a row in <strong class="font-semibold text-slate-200">Instances &amp; databases</strong> to focus this diagram on that EC2 host. Default focus is the first instance with detected DBs (otherwise the first row). Connector lines are illustrative.</p>
         <div class="topology-themed-panel relative rounded-2xl overflow-hidden glass-surface bg-white/[0.03]">
           <div class="topo-scan-line absolute left-0 right-0 h-px pointer-events-none z-[1]" style="animation: scanLine 8.5s linear infinite;"></div>
@@ -584,7 +626,7 @@
             <g id="topoDbNodes"></g>
             <text id="topoAccountText" x="300" y="288" fill="rgba(255,255,255,0.15)" font-size="10" text-anchor="middle" font-family="ui-monospace, monospace" letter-spacing="1">Account —</text>
           </svg>
-        </div>
+      </div>
       </section>
 
       <!-- Table -->
@@ -608,9 +650,9 @@
           <div id="instancesGrid" class="divide-y divide-white/[0.06]"></div>
         </div>
         <div id="emptyState" class="hidden mt-4 text-center text-sm text-slate-200 px-4 py-8 border border-dashed border-white/15 rounded-xl bg-white/[0.02]">
-          No data for this selection. Try another region/account or re-run discovery.
-        </div>
-      </section>
+        No data for this selection. Try another region/account or re-run discovery.
+      </div>
+    </section>
 
     </div>
     </main>
@@ -760,7 +802,14 @@
     const globalLockTokenInput = document.getElementById("globalLockTokenInput");
     const globalUnlockBtn = document.getElementById("globalUnlockBtn");
     const globalLockStatusEl = document.getElementById("globalLockStatus");
-    const mainPullLockStatusEl = document.getElementById("mainPullLockStatus");
+    const heroDataSourceLine = document.getElementById("heroDataSourceLine");
+    const mainLockActiveRow = document.getElementById("mainLockActiveRow");
+    const mainLockCountdownEl = document.getElementById("mainLockCountdown");
+    const mainUnlockJumpBtn = document.getElementById("mainUnlockJumpBtn");
+    const mainLockOpenHint = document.getElementById("mainLockOpenHint");
+    const mainLockUnlockLine = document.getElementById("mainLockUnlockLine");
+    const globalUnlockPanel = document.getElementById("globalUnlockPanel");
+    const globalUnlockPanelHideBtn = document.getElementById("globalUnlockPanelHideBtn");
     const apiTryMeEndpointEl = document.getElementById("apiTryMeEndpoint");
     const apiTryMeCurlEl = document.getElementById("apiTryMeCurl");
     const downloadCsvBtn = document.getElementById("downloadCsvBtn");
@@ -782,6 +831,25 @@
     let globalLastLoadedAt = 0;
     const GLOBAL_PULL_TTL_MS = Math.round(6.5 * 60 * 60 * 1000);
     const GLOBAL_PULL_LOCK_KEY = "dbdiscovery.globalPullLock.v1";
+    const GLOBAL_LAST_LOAD_META_KEY = "dbdiscovery.globalLastLoadMeta.v1";
+
+    function persistGlobalLastLoadMeta() {
+      try {
+        if (globalLastLoadedAt > 0) {
+          localStorage.setItem(GLOBAL_LAST_LOAD_META_KEY, JSON.stringify({ loadedAt: globalLastLoadedAt }));
+        }
+      } catch (e) {}
+    }
+
+    function restoreGlobalLastLoadMeta() {
+      try {
+        const raw = localStorage.getItem(GLOBAL_LAST_LOAD_META_KEY);
+        if (!raw) return;
+        const o = JSON.parse(raw);
+        if (o && typeof o.loadedAt === "number" && o.loadedAt > 0) globalLastLoadedAt = o.loadedAt;
+      } catch (e) {}
+    }
+    restoreGlobalLastLoadMeta();
     let lockCountdownTimer = null;
     let globalLoadInProgress = false;
 
@@ -811,6 +879,17 @@
       }
       if (globalLockTokenInput) globalLockTokenInput.disabled = false;
       renderBrainLockStatus();
+    }
+
+    function refreshHeroDataSourceUi() {
+      if (!heroDataSourceLine) return;
+      if (useDemoData) {
+        heroDataSourceLine.innerHTML =
+          '<span class="text-amber-200/95 font-medium">Offline preview</span><span class="text-slate-500 font-normal"> · </span><span class="text-slate-400 font-normal">Bundled sample rows (not your AWS account). Set BASE_URL at the top of this file for live data.</span>';
+      } else {
+        heroDataSourceLine.innerHTML =
+          '<span class="text-emerald-300/90 font-medium">Live</span><span class="text-slate-500 font-normal"> · </span><span class="text-slate-400 font-normal uppercase tracking-[0.18em]">Inventory from your API / discovery snapshot</span>';
+      }
     }
 
     function setStatus(msg, type = "info") {
@@ -902,30 +981,31 @@
         const rows = DEMO_RECORDS.filter(r => r.account_id === accountId && (!region || r.region === region));
         return { account_id: accountId, instances: demoGroupByInstance(rows) };
       }
-      throw new Error(`Demo mode does not support endpoint: ${path}`);
+      throw new Error(`Offline preview does not support endpoint: ${path}`);
     }
 
     function enableDemoMode(reason) {
       if (useDemoData) return;
       useDemoData = true;
       demoReason = reason || "API unavailable.";
-      setBadge("Demo mode", "warn");
-      setStatus(`${demoReason}\nLoaded bundled sample inventory so this HTML still works offline.`, "info");
+      setBadge("Offline preview", "warn");
+      setStatus(`${demoReason}\nShowing bundled sample inventory so you can still use the layout without the API.`, "info");
+      refreshHeroDataSourceUi();
     }
 
     async function fetchJson(url) {
       if (useDemoData) return demoApiResponse(url);
       try {
-        const res = await fetch(url);
-        if (!res.ok) {
-          const text = await res.text();
+      const res = await fetch(url);
+      if (!res.ok) {
+        const text = await res.text();
           if (IS_LOCAL_FILE || res.status >= 500 || [401, 403, 404].includes(res.status)) {
             enableDemoMode(`Could not read live API data (HTTP ${res.status}).`);
             return demoApiResponse(url);
           }
-          throw new Error(`HTTP ${res.status}: ${text}`);
-        }
-        return res.json();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+      return res.json();
       } catch (err) {
         const msg = String((err && err.message) || "");
         const likelyNetwork = /failed to fetch|networkerror|load failed|cors|fetch/i.test(msg.toLowerCase());
@@ -1456,10 +1536,16 @@
     }
 
     function setBrainPullLock(token) {
-      const lock = {
-        expiresAt: Date.now() + GLOBAL_PULL_TTL_MS,
-        token: token || "",
-      };
+      const now = Date.now();
+      const trimmed = (token || "").trim();
+      const existing = getBrainPullLock();
+      let expiresAt = now + GLOBAL_PULL_TTL_MS;
+      let mergedToken = trimmed;
+      if (existing && existing.expiresAt && now < Number(existing.expiresAt)) {
+        expiresAt = Number(existing.expiresAt);
+        if (!mergedToken && existing.token) mergedToken = existing.token;
+      }
+      const lock = { expiresAt, token: mergedToken };
       localStorage.setItem(GLOBAL_PULL_LOCK_KEY, JSON.stringify(lock));
       return lock;
     }
@@ -1498,28 +1584,37 @@
         clearInterval(lockCountdownTimer);
         lockCountdownTimer = null;
       }
-      const lock = getBrainPullLock();
       const locked = isBrainPullLocked();
-      const openMsg =
-        "Open — next successful Reload from API or Global Load data (new scope) starts a shared 6h 30m lock. Countdown shows here and below when active.";
-      const buildLockedMsg = () => {
-        const remainMs = Math.max(0, Number(lock.expiresAt) - Date.now());
-        const at = lockExpiryFullLabel(lock.expiresAt);
-        const tokenHint = lock.token
-          ? " Early unlock: enter the same safety token and click Unlock."
-          : " Early unlock: click Unlock (no token was set on that pull).";
-        return `Locked — next pull allowed after ${at} · ${formatDuration(remainMs)} remaining.${tokenHint}`;
-      };
+      const openStory =
+        "No lock right now. The next Reload or Global Load that hits the API starts a shared 6h 30m pause on new pulls. Optional safety token before you pull. The timer lives in this browser — refreshing the page does not start it over; only Unlock or waiting until the unlock time clears it.";
       const applyTexts = () => {
         if (!locked) {
-          if (globalLockStatusEl) globalLockStatusEl.textContent = openMsg;
-          if (mainPullLockStatusEl) mainPullLockStatusEl.textContent = openMsg;
+          mainLockActiveRow?.classList.add("hidden");
+          mainLockUnlockLine?.classList.add("hidden");
+          mainLockOpenHint?.classList.remove("hidden");
+          if (mainLockCountdownEl) mainLockCountdownEl.textContent = "00:00:00";
+          if (globalLockStatusEl) globalLockStatusEl.textContent = openStory;
           if (globalUnlockBtn) globalUnlockBtn.disabled = true;
+          globalUnlockPanel?.classList.add("hidden");
           return;
         }
-        const msg = buildLockedMsg();
-        if (globalLockStatusEl) globalLockStatusEl.textContent = msg;
-        if (mainPullLockStatusEl) mainPullLockStatusEl.textContent = msg;
+        const lock = getBrainPullLock();
+        if (!lock || !lock.expiresAt) return;
+        const remainMs = Math.max(0, Number(lock.expiresAt) - Date.now());
+        const at = lockExpiryFullLabel(lock.expiresAt);
+        mainLockActiveRow?.classList.remove("hidden");
+        mainLockOpenHint?.classList.add("hidden");
+        mainLockUnlockLine?.classList.remove("hidden");
+        if (mainLockCountdownEl) mainLockCountdownEl.textContent = formatDuration(remainMs);
+        if (mainLockUnlockLine) {
+          mainLockUnlockLine.textContent = `Unlocks on ${at} — ${formatDuration(remainMs)} left. Refreshing this page does not reset this countdown (it is saved in your browser). New API pulls stay paused until that time unless you unlock early.`;
+        }
+        const tokenNote = lock.token
+          ? " Unlock: same safety token + Unlock below."
+          : " Unlock: click Unlock below (you did not set a token on that pull).";
+        if (globalLockStatusEl) {
+          globalLockStatusEl.textContent = `Same lock as the hero pill · Unlocks ${at} · ${formatDuration(remainMs)} remaining.` + tokenNote;
+        }
         if (globalUnlockBtn) globalUnlockBtn.disabled = false;
       };
       applyTexts();
@@ -1531,8 +1626,10 @@
             return;
           }
           applyTexts();
+          if (globalLastLoadedAt) updateGlobalMeta();
         }, 1000);
       }
+      if (globalLastLoadedAt) updateGlobalMeta();
     }
 
     function escapeQueryValue(v) {
@@ -1593,8 +1690,25 @@
       const hosts = new Set(rows.map(r => r.instance_id)).size;
       const baseCount = (globalBrainSourceRows || []).length;
       const suffix = baseCount && baseCount !== rows.length ? ` (filtered from ${baseCount})` : "";
-      const loadedAt = globalLastLoadedAt ? ` · loaded ${new Date(globalLastLoadedAt).toLocaleTimeString()}` : "";
-      globalMetaEl.textContent = `${rows.length} row(s) · ${hosts} instance(s) · ${accounts} account(s) · ${regions} region(s)${suffix}${loadedAt}${extra ? ` · ${extra}` : ""}`;
+      const pulled = globalLastLoadedAt
+        ? new Date(globalLastLoadedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+        : "—";
+      const sourceLine = useDemoData
+        ? "Source: Offline preview (bundled sample — not your AWS account)"
+        : "Source: Live (API + discovery snapshot)";
+      let lockLine = "";
+      if (isBrainPullLocked() && !useDemoData) {
+        const lk = getBrainPullLock();
+        if (lk && lk.expiresAt) {
+          const rem = Math.max(0, Number(lk.expiresAt) - Date.now());
+          lockLine = ` · Next pull unlocks ${lockExpiryFullLabel(lk.expiresAt)} (${formatDuration(rem)} left)`;
+        }
+      }
+      const sessionNote =
+        globalLastLoadedAt > 0 && baseCount === 0
+          ? " · Global table is empty this session (refresh cleared rows) — last recorded pull time is kept below; click Load data to refill when the lock allows."
+          : "";
+      globalMetaEl.textContent = `${rows.length} row(s) · ${hosts} host(s) · ${accounts} account(s) · ${regions} region(s)${suffix} · ${sourceLine} · Last pulled ${pulled}${lockLine}${sessionNote}${extra ? ` · ${extra}` : ""}`;
     }
 
     function applyGlobalFilters() {
@@ -1749,6 +1863,7 @@
           globalBrainSourceRows = sourceRows;
           globalBrainSourceKey = sourceKey;
           globalLastLoadedAt = Date.now();
+          persistGlobalLastLoadMeta();
           const token = (globalLockTokenInput && globalLockTokenInput.value || "").trim();
           setBrainPullLock(token);
         }
@@ -1807,9 +1922,10 @@
         }
         syncPullLockUi();
         if (useDemoData) {
-          setBadge("Demo mode", "warn");
-          setStatus(`Regions loaded from bundled sample data (${regions.length}). Update BASE_URL + run discovery for live inventory.`, "info");
+          setBadge("Offline preview", "warn");
+          setStatus(`Regions loaded from bundled sample data (${regions.length}). Set BASE_URL in this file and run discovery for live inventory.`, "info");
         } else {
+          refreshHeroDataSourceUi();
           setBadge("✓ API ready", "ok");
           setStatus(`Regions loaded (${regions.length}). Pick account or change region.`, "success");
         }
@@ -1944,10 +2060,23 @@
         return;
       }
       clearBrainPullLock();
+      globalUnlockPanel?.classList.add("hidden");
       setStatus("Safety lock cleared. Refreshing from API…", "success");
       syncPullLockUi();
       await loadRegions(true);
     });
+    if (mainUnlockJumpBtn) {
+      mainUnlockJumpBtn.addEventListener("click", () => {
+        globalUnlockPanel?.classList.remove("hidden");
+        globalUnlockPanel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        globalLockTokenInput?.focus();
+      });
+    }
+    if (globalUnlockPanelHideBtn) {
+      globalUnlockPanelHideBtn.addEventListener("click", () => {
+        globalUnlockPanel?.classList.add("hidden");
+      });
+    }
     globalLockTokenInput.addEventListener("keydown", e => {
       if (e.key !== "Enter") return;
       e.preventDefault();
@@ -1975,6 +2104,7 @@
     });
 
     renderTryMeBlock();
+    refreshHeroDataSourceUi();
     syncPullLockUi();
     (async () => {
       await loadRegions(false);
