@@ -80,7 +80,7 @@ Management Account                           Spoke Accounts
 |----------|---------|
 | [FULL_SETUP_IN_ORDER.md](FULL_SETUP_IN_ORDER.md) | Step-by-step setup (console-oriented) |
 | [COST_AND_STOP_RESOURCES.md](COST_AND_STOP_RESOURCES.md) | Stop EC2, disable EventBridge, teardown notes |
-| [DEMO_RUNBOOK_FRIDAY.md](DEMO_RUNBOOK_FRIDAY.md) | Demo-day checklist, architecture pitch, Q&A (new account / new EC2) |
+| [DEMO_RUNBOOK_FRIDAY.md](DEMO_RUNBOOK_FRIDAY.md) | **5-minute presentation script** + **viva / Q&A** (links out for setup & cost) |
 | [automation/STACKSET_AUTOMATION.md](automation/STACKSET_AUTOMATION.md) | StackSet create/update, OU vs account targets |
 | [automation/EVENTBRIDGE_DISCOVERY_SCHEDULE.md](automation/EVENTBRIDGE_DISCOVERY_SCHEDULE.md) | Deploy EventBridge schedule → `db-discovery` (IaC) |
 | [api/api-gateway-config.md](api/api-gateway-config.md) | Example routes and curl |

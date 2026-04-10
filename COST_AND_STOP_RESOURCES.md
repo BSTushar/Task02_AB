@@ -1,5 +1,39 @@
 # Cost & How to Stop Resources When Not in Use
 
+## Operational cost — rough **per day** (USD, order of magnitude)
+
+**Not a quote.** AWS bills per second/request/GB with regional variance; use [AWS Pricing Calculator](https://calculator.aws/) with your exact region, instance types, and invocation counts.
+
+### Hub (management account) — **no spoke EC2 running**
+
+Typical POC assumptions: **1× discovery/day** (EventBridge or manual), **API** used lightly for demos/tests (~100 GETs/day), **S3** holds one JSON + scripts (&lt; 1 GB), **two Lambdas**, **API Gateway**.
+
+| Line item | Typical POC assumption | **~ USD / day** (ballpark) |
+|-----------|-------------------------|----------------------------|
+| **EventBridge** (scheduled rule) | 1 scheduled trigger/day | **&lt; 0.01** |
+| **Lambda `db-discovery`** | 1 run/day, a few minutes, 512 MB–1 GB | **0.01 – 0.15** |
+| **Lambda `db-discovery-api`** | tens–hundreds of invocations, short | **&lt; 0.01 – 0.05** |
+| **API Gateway** | same order as API calls | **&lt; 0.01 – 0.05** |
+| **S3** (Standard) | small object + low request rate | **&lt; 0.01** |
+| **CloudWatch Logs** | default Lambda logging | **0.01 – 0.10** |
+| **Hub total (EC2 stopped, light use)** | | **~ 0.05 – 0.35 / day** |
+
+**Cheaper days:** disable **EventBridge**, stop calling **API**, keep **EC2 stopped** → hub often **under ~$0.10/day** (still not zero: storage + idle Lambda/API minimums are tiny but non‑zero until teardown).
+
+### Spoke — **EC2** (dominant variable)
+
+If **instances are running** 24 h, **EC2 + EBS** usually **dwarfs** the hub line items above.
+
+| Example | **~ USD / day** (very rough) |
+|---------|------------------------------|
+| **t3.micro** (or similar) 24 h in e.g. **ap-south-1** | **~ 0.25 – 0.60** per instance |
+| **t3.small** 24 h | **~ 0.50 – 1.20** per instance |
+| **EBS** gp3 20 GB | **~ 0.02 – 0.05** (storage/month prorated ≈ **&lt; 0.01/day**) |
+
+**Rule of thumb for this project:** **Stop spoke EC2** when not demoing; **disable EventBridge** if you do not want daily discovery invocations. See sections below.
+
+---
+
 ## When not using the project
 
 ### Must do (stops most cost)
