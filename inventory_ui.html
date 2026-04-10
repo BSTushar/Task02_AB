@@ -502,6 +502,10 @@
             </button>
           </div>
         </div>
+        <div class="mb-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3">
+          <p class="text-[11px] text-slate-200 m-0"><strong>How to use:</strong> 1) Choose <strong>Scope</strong> (current/region/main), 2) click <strong>Load data</strong> once, 3) refine using Region/Account/Engine filters (no extra API calls), 4) use CSV/Excel export.</p>
+          <p class="text-[11px] text-slate-400 m-0 mt-2">Safety mode: after a successful pull, API reload is locked for <strong>6.5 hours</strong>. You can still filter loaded data instantly.</p>
+        </div>
         <p id="globalMeta" class="text-[11px] text-slate-400 m-0 mb-3">Choose scope and optional filters (region/account/engine), then click <strong class="text-slate-200">Load data</strong>.</p>
         <p id="globalLockStatus" class="text-[11px] text-amber-200/90 m-0 mb-3"></p>
 
@@ -774,8 +778,9 @@
     let topologySelectedInstanceId = null;
     let globalBrainSourceKey = "";
     let globalLastLoadedAt = 0;
-    const GLOBAL_PULL_TTL_MS = 60 * 60 * 1000;
+    const GLOBAL_PULL_TTL_MS = Math.round(6.5 * 60 * 60 * 1000);
     const GLOBAL_PULL_LOCK_KEY = "dbdiscovery.globalPullLock.v1";
+    let lockCountdownTimer = null;
 
     function setStatus(msg, type = "info") {
       const colors = { info: "text-slate-200", success: "text-emerald-300", error: "text-red-400" };
@@ -1447,18 +1452,41 @@
       return Number.isFinite(d.getTime()) ? d.toLocaleTimeString() : "soon";
     }
 
+    function formatDuration(ms) {
+      const total = Math.max(0, Math.floor(ms / 1000));
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+
     function renderBrainLockStatus() {
       if (!globalLockStatusEl || !globalUnlockBtn) return;
       const lock = getBrainPullLock();
       const locked = isBrainPullLocked();
+      if (lockCountdownTimer) {
+        clearInterval(lockCountdownTimer);
+        lockCountdownTimer = null;
+      }
       if (!locked) {
-        globalLockStatusEl.textContent = "Safety lock is open. API pull will lock for 1 hour after next successful load.";
+        globalLockStatusEl.textContent = "Safety lock is open. Next successful API pull will lock reload for 6h 30m.";
         globalUnlockBtn.disabled = true;
         return;
       }
       const until = lockExpiryLabel(lock.expiresAt);
       const tokenHint = lock.token ? " Token required to unlock early." : "";
-      globalLockStatusEl.textContent = `Safety lock active until ${until}.${tokenHint}`;
+      const refreshText = () => {
+        const remainMs = Math.max(0, Number(lock.expiresAt) - Date.now());
+        globalLockStatusEl.textContent = `Safety lock active until ${until} (next token window in ${formatDuration(remainMs)}).${tokenHint}`;
+      };
+      refreshText();
+      lockCountdownTimer = setInterval(() => {
+        if (!isBrainPullLocked()) {
+          renderBrainLockStatus();
+          return;
+        }
+        refreshText();
+      }, 1000);
       globalUnlockBtn.disabled = false;
     }
 
@@ -1642,7 +1670,7 @@
       if (needsApiPull && isBrainPullLocked()) {
         renderBrainLockStatus();
         applyGlobalFilters();
-        setStatus("API pull is safety-locked for 1 hour. Use current loaded data filters or unlock with token.", "info");
+        setStatus("API pull is safety-locked for 6.5 hours. Use loaded data filters or unlock with token.", "info");
         return;
       }
 
