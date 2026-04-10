@@ -490,6 +490,10 @@
             <button id="globalLoadBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/20 bg-white/[0.06] text-slate-200 hover:bg-white/[0.1]">
               Load data
             </button>
+            <input id="globalLockTokenInput" type="password" placeholder="Safety token (optional)" class="story-select h-9 min-w-[13rem] rounded-full px-3 text-[12px] leading-none" />
+            <button id="globalUnlockBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              Unlock now
+            </button>
             <button id="downloadCsvBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
               Download CSV
             </button>
@@ -499,6 +503,15 @@
           </div>
         </div>
         <p id="globalMeta" class="text-[11px] text-slate-400 m-0 mb-3">Choose scope and optional filters (region/account/engine), then click <strong class="text-slate-200">Load data</strong>.</p>
+        <p id="globalLockStatus" class="text-[11px] text-amber-200/90 m-0 mb-3"></p>
+
+        <details class="mb-4 text-xs text-slate-300 border border-white/10 rounded-xl p-3 bg-white/[0.02]">
+          <summary class="cursor-pointer text-slate-200 font-semibold">Try me — integration API filters</summary>
+          <p class="mt-2 mb-2">Use this filtered endpoint in PCP/Airbus dashboards (backend proxy preferred):</p>
+          <div id="apiTryMeEndpoint" class="font-mono text-[11px] break-all text-indigo-200"></div>
+          <p class="mt-2 mb-1 text-slate-400">cURL:</p>
+          <pre id="apiTryMeCurl" class="whitespace-pre-wrap text-[11px] text-slate-300 bg-black/25 rounded-lg p-2 overflow-auto"></pre>
+        </details>
 
         <div class="rounded-xl overflow-hidden border border-white/[0.06] bg-white/[0.03] glass-surface shadow-[0_20px_64px_-40px_rgba(0,0,0,0.5)]">
           <div class="hidden md:grid md:grid-cols-[0.9fr_1fr_1.4fr_1.1fr_1fr_1fr_1.2fr_1.1fr_0.8fr] gap-0 text-[10px] tracking-widest uppercase text-slate-400 border-b border-white/[0.06]">
@@ -739,6 +752,11 @@
     const globalRegionFilterSelect = document.getElementById("globalRegionFilterSelect");
     const globalAccountFilterSelect = document.getElementById("globalAccountFilterSelect");
     const globalEngineFilterSelect = document.getElementById("globalEngineFilterSelect");
+    const globalLockTokenInput = document.getElementById("globalLockTokenInput");
+    const globalUnlockBtn = document.getElementById("globalUnlockBtn");
+    const globalLockStatusEl = document.getElementById("globalLockStatus");
+    const apiTryMeEndpointEl = document.getElementById("apiTryMeEndpoint");
+    const apiTryMeCurlEl = document.getElementById("apiTryMeCurl");
     const downloadCsvBtn = document.getElementById("downloadCsvBtn");
     const downloadExcelBtn = document.getElementById("downloadExcelBtn");
     const globalRowsEl = document.getElementById("globalRows");
@@ -754,6 +772,10 @@
     let demoReason = "";
     /** null = default focus (first instance with DBs, else first row) */
     let topologySelectedInstanceId = null;
+    let globalBrainSourceKey = "";
+    let globalLastLoadedAt = 0;
+    const GLOBAL_PULL_TTL_MS = 60 * 60 * 1000;
+    const GLOBAL_PULL_LOCK_KEY = "dbdiscovery.globalPullLock.v1";
 
     function setStatus(msg, type = "info") {
       const colors = { info: "text-slate-200", success: "text-emerald-300", error: "text-red-400" };
@@ -1385,6 +1407,89 @@
       return raw || "none";
     }
 
+    function getBrainPullLock() {
+      try {
+        const raw = localStorage.getItem(GLOBAL_PULL_LOCK_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return null;
+        return parsed;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function setBrainPullLock(token) {
+      const lock = {
+        expiresAt: Date.now() + GLOBAL_PULL_TTL_MS,
+        token: token || "",
+      };
+      localStorage.setItem(GLOBAL_PULL_LOCK_KEY, JSON.stringify(lock));
+      return lock;
+    }
+
+    function clearBrainPullLock() {
+      localStorage.removeItem(GLOBAL_PULL_LOCK_KEY);
+    }
+
+    function isBrainPullLocked() {
+      const lock = getBrainPullLock();
+      if (!lock || !lock.expiresAt) return false;
+      if (Date.now() >= Number(lock.expiresAt)) {
+        clearBrainPullLock();
+        return false;
+      }
+      return true;
+    }
+
+    function lockExpiryLabel(ts) {
+      const d = new Date(Number(ts));
+      return Number.isFinite(d.getTime()) ? d.toLocaleTimeString() : "soon";
+    }
+
+    function renderBrainLockStatus() {
+      if (!globalLockStatusEl || !globalUnlockBtn) return;
+      const lock = getBrainPullLock();
+      const locked = isBrainPullLocked();
+      if (!locked) {
+        globalLockStatusEl.textContent = "Safety lock is open. API pull will lock for 1 hour after next successful load.";
+        globalUnlockBtn.disabled = true;
+        return;
+      }
+      const until = lockExpiryLabel(lock.expiresAt);
+      const tokenHint = lock.token ? " Token required to unlock early." : "";
+      globalLockStatusEl.textContent = `Safety lock active until ${until}.${tokenHint}`;
+      globalUnlockBtn.disabled = false;
+    }
+
+    function escapeQueryValue(v) {
+      return encodeURIComponent(v == null ? "" : String(v));
+    }
+
+    function buildTryMePayload() {
+      const region = (globalRegionFilterSelect && globalRegionFilterSelect.value) || "all";
+      const account = (globalAccountFilterSelect && globalAccountFilterSelect.value) || "all";
+      const engine = (globalEngineFilterSelect && globalEngineFilterSelect.value) || "all";
+      const parts = [];
+      if (region !== "all") parts.push(`region=${escapeQueryValue(region)}`);
+      if (account !== "all") parts.push(`account_id=${escapeQueryValue(account)}`);
+      if (engine !== "all") parts.push(`engine=${escapeQueryValue(engine)}`);
+      parts.push("include_empty=false");
+      const query = parts.join("&");
+      const endpoint = `${BASE_URL}/databases?${query}`;
+      return {
+        endpoint,
+        curl: `curl -s "${endpoint}"`,
+      };
+    }
+
+    function renderTryMeBlock() {
+      if (!apiTryMeEndpointEl || !apiTryMeCurlEl) return;
+      const payload = buildTryMePayload();
+      apiTryMeEndpointEl.textContent = payload.endpoint;
+      apiTryMeCurlEl.textContent = payload.curl;
+    }
+
     function populateGlobalFilterOptions(rows) {
       if (!globalRegionFilterSelect || !globalAccountFilterSelect || !globalEngineFilterSelect) return;
       const list = rows || [];
@@ -1403,9 +1508,20 @@
       globalEngineFilterSelect.innerHTML = `<option value="all">Engine: all</option>` +
         engines.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
 
-      if (regions.includes(selectedRegion)) globalRegionFilterSelect.value = selectedRegion;
-      if (accounts.includes(selectedAccount)) globalAccountFilterSelect.value = selectedAccount;
-      if (engines.includes(selectedEngine)) globalEngineFilterSelect.value = selectedEngine;
+      if (selectedRegion === "all" || regions.includes(selectedRegion)) globalRegionFilterSelect.value = selectedRegion;
+      if (selectedAccount === "all" || accounts.includes(selectedAccount)) globalAccountFilterSelect.value = selectedAccount;
+      if (selectedEngine === "all" || engines.includes(selectedEngine)) globalEngineFilterSelect.value = selectedEngine;
+    }
+
+    function updateGlobalMeta(extra = "") {
+      const rows = globalBrainRows || [];
+      const regions = new Set(rows.map(r => r.region)).size;
+      const accounts = new Set(rows.map(r => r.account_id)).size;
+      const hosts = new Set(rows.map(r => r.instance_id)).size;
+      const baseCount = (globalBrainSourceRows || []).length;
+      const suffix = baseCount && baseCount !== rows.length ? ` (filtered from ${baseCount})` : "";
+      const loadedAt = globalLastLoadedAt ? ` · loaded ${new Date(globalLastLoadedAt).toLocaleTimeString()}` : "";
+      globalMetaEl.textContent = `${rows.length} row(s) · ${hosts} instance(s) · ${accounts} account(s) · ${regions} region(s)${suffix}${loadedAt}${extra ? ` · ${extra}` : ""}`;
     }
 
     function applyGlobalFilters() {
@@ -1420,16 +1536,12 @@
         return true;
       });
       renderGlobalBrain(filtered);
+      renderTryMeBlock();
     }
 
     function renderGlobalBrain(rows) {
       globalBrainRows = rows || [];
-      const regions = new Set(globalBrainRows.map(r => r.region)).size;
-      const accounts = new Set(globalBrainRows.map(r => r.account_id)).size;
-      const hosts = new Set(globalBrainRows.map(r => r.instance_id)).size;
-      const baseCount = (globalBrainSourceRows || []).length;
-      const suffix = baseCount && baseCount !== globalBrainRows.length ? ` (filtered from ${baseCount})` : "";
-      globalMetaEl.textContent = `${globalBrainRows.length} row(s) · ${hosts} instance(s) · ${accounts} account(s) · ${regions} region(s)${suffix}`;
+      updateGlobalMeta();
 
       if (!globalBrainRows.length) {
         globalRowsEl.innerHTML = "";
@@ -1489,127 +1601,90 @@
       downloadBlob(blob, `global_inventory_${new Date().toISOString().slice(0, 10)}.xls`);
     }
 
+    function buildQuery(pairs) {
+      const parts = [];
+      pairs.forEach(([k, v]) => {
+        if (v == null || v === "") return;
+        parts.push(`${escapeQueryValue(k)}=${escapeQueryValue(v)}`);
+      });
+      return parts.length ? `?${parts.join("&")}` : "";
+    }
+
+    function toGlobalRowsFromFlatRecords(records) {
+      return (records || []).filter(r => r && typeof r === "object").map(r => ({
+        region: r.region || "unknown",
+        account_id: r.account_id || "unknown",
+        instance_id: r.instance_id || "unknown",
+        instance_name: tagName(r.tags) || "",
+        instance_type: r.instance_type || "unknown",
+        ec2_state: r.ec2_state || "",
+        discovery_status: r.discovery_status || "unknown",
+        db_id: r.db_id || "",
+        engine: r.engine || "",
+        version: r.version || "",
+        db_status: r.status || "",
+        port: r.port || 0,
+        data_size_mb: r.data_size_mb || 0,
+        tags: formatTags(r.tags),
+      }));
+    }
+
     async function loadGlobalBrain() {
       const scope = (globalScopeSelect && globalScopeSelect.value) || "main";
-      const filterRegion = (globalRegionFilterSelect && globalRegionFilterSelect.value) || "all";
-      const filterAccount = (globalAccountFilterSelect && globalAccountFilterSelect.value) || "all";
-      const filterEngine = (globalEngineFilterSelect && globalEngineFilterSelect.value) || "all";
-      const scopeLabel =
+      const sourceKey =
         scope === "current"
-          ? "current account"
+          ? `${scope}|${regionSelect.value || ""}|${accountSelect.value || ""}`
           : scope === "region"
-          ? "current region"
-          : "all regions + accounts";
-      const activeFilterBits = [];
-      if (filterRegion !== "all") activeFilterBits.push(`region=${filterRegion}`);
-      if (filterAccount !== "all") activeFilterBits.push(`account=${filterAccount}`);
-      if (filterEngine !== "all") activeFilterBits.push(`engine=${filterEngine}`);
-      const filterLabel = activeFilterBits.length ? ` with filters (${activeFilterBits.join(", ")})` : "";
+          ? `${scope}|${regionSelect.value || ""}`
+          : "main|all";
+
+      const needsApiPull = !globalBrainSourceRows.length || globalBrainSourceKey !== sourceKey;
+      if (needsApiPull && isBrainPullLocked()) {
+        renderBrainLockStatus();
+        applyGlobalFilters();
+        setStatus("API pull is safety-locked for 1 hour. Use current loaded data filters or unlock with token.", "info");
+        return;
+      }
+
       globalLoadBtn.disabled = true;
       globalLoadBtn.textContent = "Loading…";
-      globalMetaEl.textContent = `Scanning ${scopeLabel}${filterLabel} from API…`;
+      globalMetaEl.textContent = "Loading source inventory for selected scope…";
       try {
-        // Prefer new API-side filtering endpoint for faster third-party/dashboard usage.
-        const useApiFilteredFetch = !useDemoData && scope === "main";
-        const allRows = [];
-        if (useApiFilteredFetch) {
-          const qs = new URLSearchParams();
-          if (filterRegion !== "all") qs.set("region", filterRegion);
-          if (filterAccount !== "all") qs.set("account_id", filterAccount);
-          if (filterEngine !== "all") qs.set("engine", filterEngine);
-          const filteredPath = `${BASE_URL}/databases${qs.toString() ? `?${qs.toString()}` : ""}`;
-          try {
-            const dbData = await fetchJson(filteredPath);
-            const dbRows = Array.isArray(dbData && dbData.databases) ? dbData.databases : [];
-            if (dbRows.length) {
-              const groupedByRegionAccount = {};
-              dbRows.forEach(r => {
-                const reg = r.region || "unknown";
-                const acc = r.account_id || "unknown";
-                const key = `${reg}::${acc}`;
-                if (!groupedByRegionAccount[key]) groupedByRegionAccount[key] = { region: reg, account: acc, rows: [] };
-                groupedByRegionAccount[key].rows.push(r);
-              });
-              Object.values(groupedByRegionAccount).forEach(g => {
-                allRows.push(...toGlobalRows(demoGroupByInstance(g.rows), g.region, g.account));
-              });
-            }
-          } catch (err) {
-            // Fallback to existing expansion flow if API gateway route/query support is behind.
-            console.warn("Filtered /databases path unavailable, falling back to expanded fetch.", err);
-          }
-        }
-
-        if (!allRows.length) {
-          let effectiveRegion = null;
-          let effectiveAccount = null;
-          let effectiveEngine = null;
-          if (filterRegion !== "all") effectiveRegion = filterRegion;
-          if (filterAccount !== "all") effectiveAccount = filterAccount;
-          if (filterEngine !== "all") effectiveEngine = filterEngine;
-
+        if (needsApiPull) {
+          const sourceRows = [];
           if (scope === "current") {
-            const region = effectiveRegion || regionSelect.value;
-            const accountId = effectiveAccount || accountSelect.value;
+            const region = regionSelect.value;
+            const accountId = accountSelect.value;
             if (!region || !accountId) throw new Error("Select region and account first.");
-            const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
-            const flat = toGlobalRows(data.instances || [], region, accountId);
-            const filtered = effectiveEngine ? flat.filter(r => canonicalEngineKey(r.engine) === canonicalEngineKey(effectiveEngine)) : flat;
-            allRows.push(...filtered);
+            const data = await fetchJson(`${BASE_URL}/accounts/${escapeQueryValue(accountId)}/instances${buildQuery([["region", region]])}`);
+            sourceRows.push(...toGlobalRows(data.instances || [], region, accountId));
           } else if (scope === "region") {
-            const region = effectiveRegion || regionSelect.value;
+            const region = regionSelect.value;
             if (!region) throw new Error("Select a region first.");
-            const accData = await fetchJson(`${BASE_URL}/accounts?region=${encodeURIComponent(region)}`);
+            const accData = await fetchJson(`${BASE_URL}/accounts${buildQuery([["region", region]])}`);
             const accounts = accData.accounts || [];
             for (const accountId of accounts) {
-              if (effectiveAccount && accountId !== effectiveAccount) continue;
-              const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
-              const flat = toGlobalRows(data.instances || [], region, accountId);
-              const filtered = effectiveEngine ? flat.filter(r => canonicalEngineKey(r.engine) === canonicalEngineKey(effectiveEngine)) : flat;
-              allRows.push(...filtered);
+              const data = await fetchJson(`${BASE_URL}/accounts/${escapeQueryValue(accountId)}/instances${buildQuery([["region", region]])}`);
+              sourceRows.push(...toGlobalRows(data.instances || [], region, accountId));
             }
           } else {
-            const regData = await fetchJson(`${BASE_URL}/regions`);
-            const regions = regData.regions || [];
-            for (const region of regions) {
-              if (effectiveRegion && region !== effectiveRegion) continue;
-              const accData = await fetchJson(`${BASE_URL}/accounts?region=${encodeURIComponent(region)}`);
-              const accounts = accData.accounts || [];
-              for (const accountId of accounts) {
-                if (effectiveAccount && accountId !== effectiveAccount) continue;
-                const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
-                const flat = toGlobalRows(data.instances || [], region, accountId);
-                const filtered = effectiveEngine ? flat.filter(r => canonicalEngineKey(r.engine) === canonicalEngineKey(effectiveEngine)) : flat;
-                allRows.push(...filtered);
-              }
-            }
+            // Pull full source once; filters are applied client-side for reliability.
+            const data = await fetchJson(`${BASE_URL}/databases${buildQuery([["include_empty", "true"]])}`);
+            sourceRows.push(...toGlobalRowsFromFlatRecords((data && data.databases) || []));
           }
+          globalBrainSourceRows = sourceRows;
+          globalBrainSourceKey = sourceKey;
+          globalLastLoadedAt = Date.now();
+          const token = (globalLockTokenInput && globalLockTokenInput.value || "").trim();
+          setBrainPullLock(token);
+          renderBrainLockStatus();
         }
 
-        globalBrainSourceRows = allRows;
-        // Preserve selected filter values after option refresh.
-        const preserved = {
-          region: filterRegion,
-          account: filterAccount,
-          engine: filterEngine,
-        };
         populateGlobalFilterOptions(globalBrainSourceRows);
-        if (globalRegionFilterSelect && (preserved.region === "all" || [...globalRegionFilterSelect.options].some(o => o.value === preserved.region))) {
-          globalRegionFilterSelect.value = preserved.region;
-        }
-        if (globalAccountFilterSelect && (preserved.account === "all" || [...globalAccountFilterSelect.options].some(o => o.value === preserved.account))) {
-          globalAccountFilterSelect.value = preserved.account;
-        }
-        if (globalEngineFilterSelect && (preserved.engine === "all" || [...globalEngineFilterSelect.options].some(o => o.value === preserved.engine))) {
-          globalEngineFilterSelect.value = preserved.engine;
-        }
         applyGlobalFilters();
-        setStatus(`Global inventory ready for ${scopeLabel}${filterLabel} (${allRows.length} flattened row(s)).`, "success");
+        setStatus(`Global inventory ready (${globalBrainRows.length} row(s) visible).`, "success");
       } catch (e) {
         console.error(e);
-        globalBrainSourceRows = [];
-        populateGlobalFilterOptions([]);
-        globalMetaEl.textContent = "Failed to build global inventory.";
         setStatus("Failed loading global inventory.", "error");
       } finally {
         globalLoadBtn.disabled = false;
@@ -1752,6 +1827,26 @@
     globalRegionFilterSelect.addEventListener("change", () => applyGlobalFilters());
     globalAccountFilterSelect.addEventListener("change", () => applyGlobalFilters());
     globalEngineFilterSelect.addEventListener("change", () => applyGlobalFilters());
+    globalUnlockBtn.addEventListener("click", () => {
+      const lock = getBrainPullLock();
+      if (!lock) {
+        renderBrainLockStatus();
+        return;
+      }
+      const entered = (globalLockTokenInput && globalLockTokenInput.value || "").trim();
+      if (lock.token && entered !== lock.token) {
+        setStatus("Unlock token mismatch. Enter the same token used during last pull.", "error");
+        return;
+      }
+      clearBrainPullLock();
+      renderBrainLockStatus();
+      setStatus("Safety lock cleared. You can pull data again now.", "success");
+    });
+    globalLockTokenInput.addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (!globalUnlockBtn.disabled) globalUnlockBtn.click();
+    });
     downloadCsvBtn.addEventListener("click", () => downloadGlobalCsv());
     downloadExcelBtn.addEventListener("click", () => downloadGlobalExcel());
 
@@ -1773,6 +1868,8 @@
       row.click();
     });
 
+    renderTryMeBlock();
+    renderBrainLockStatus();
     (async () => {
       await loadRegions();
     })();
