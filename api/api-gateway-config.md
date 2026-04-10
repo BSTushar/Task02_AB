@@ -28,12 +28,12 @@ API: db-discovery-api
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Health, `total_records`, **`store`: `"s3"`** |
-| GET | `/accounts` | Distinct `account_id` values in current snapshot |
+| GET | `/accounts` | Distinct `account_id` values in current snapshot; optional `?region=` |
 | GET | `/regions` | Distinct `region` values in current snapshot |
 | GET | `/regions/{region}/accounts` | Accounts that have data in that region |
-| GET | `/accounts/{accountId}` | Flat list of records for account |
-| GET | `/accounts/{accountId}/instances` | Grouped instances + DBs; optional **`?region=`** filter |
-| GET | `/databases` | All records; optional **`?engine=`**, **`?account_id=`** |
+| GET | `/accounts/{accountId}` | Flat list of records for account; optional `?region=`, `?engine=`, `?instance_id=`, `?discovery_status=`, `?ec2_state=` |
+| GET | `/accounts/{accountId}/instances` | Grouped instances + DBs; optional **`?region=`**, `?engine=`, `?instance_id=`, `?discovery_status=`, `?ec2_state=` |
+| GET | `/databases` | All records; optional filters: **`?region=`**, **`?account_id=`**, **`?engine=`**, `?instance_id=`, `?discovery_status=`, `?ec2_state=` |
 
 ### Response fields (per instance / per record)
 
@@ -73,6 +73,8 @@ curl -s "$BASE/regions/eu-west-1/accounts"
 curl -s "$BASE/accounts"
 curl -s "$BASE/accounts/123456789012/instances?region=eu-west-1"
 curl -s "$BASE/databases?engine=mysql"
+curl -s "$BASE/databases?region=ap-south-1&engine=postgresql"
+curl -s "$BASE/accounts/123456789012/instances?region=ap-south-1&engine=postgresql"
 ```
 
 ---

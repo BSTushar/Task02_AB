@@ -1491,50 +1491,120 @@
 
     async function loadGlobalBrain() {
       const scope = (globalScopeSelect && globalScopeSelect.value) || "main";
+      const filterRegion = (globalRegionFilterSelect && globalRegionFilterSelect.value) || "all";
+      const filterAccount = (globalAccountFilterSelect && globalAccountFilterSelect.value) || "all";
+      const filterEngine = (globalEngineFilterSelect && globalEngineFilterSelect.value) || "all";
       const scopeLabel =
         scope === "current"
           ? "current account"
           : scope === "region"
           ? "current region"
           : "all regions + accounts";
+      const activeFilterBits = [];
+      if (filterRegion !== "all") activeFilterBits.push(`region=${filterRegion}`);
+      if (filterAccount !== "all") activeFilterBits.push(`account=${filterAccount}`);
+      if (filterEngine !== "all") activeFilterBits.push(`engine=${filterEngine}`);
+      const filterLabel = activeFilterBits.length ? ` with filters (${activeFilterBits.join(", ")})` : "";
       globalLoadBtn.disabled = true;
       globalLoadBtn.textContent = "Loading…";
-      globalMetaEl.textContent = `Scanning ${scopeLabel} from API…`;
+      globalMetaEl.textContent = `Scanning ${scopeLabel}${filterLabel} from API…`;
       try {
+        // Prefer new API-side filtering endpoint for faster third-party/dashboard usage.
+        const useApiFilteredFetch = !useDemoData && scope === "main";
         const allRows = [];
-
-        if (scope === "current") {
-          const region = regionSelect.value;
-          const accountId = accountSelect.value;
-          if (!region || !accountId) throw new Error("Select region and account first.");
-          const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
-          allRows.push(...toGlobalRows(data.instances || [], region, accountId));
-        } else if (scope === "region") {
-          const region = regionSelect.value;
-          if (!region) throw new Error("Select a region first.");
-          const accData = await fetchJson(`${BASE_URL}/accounts?region=${encodeURIComponent(region)}`);
-          const accounts = accData.accounts || [];
-          for (const accountId of accounts) {
-            const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
-            allRows.push(...toGlobalRows(data.instances || [], region, accountId));
+        if (useApiFilteredFetch) {
+          const qs = new URLSearchParams();
+          if (filterRegion !== "all") qs.set("region", filterRegion);
+          if (filterAccount !== "all") qs.set("account_id", filterAccount);
+          if (filterEngine !== "all") qs.set("engine", filterEngine);
+          const filteredPath = `${BASE_URL}/databases${qs.toString() ? `?${qs.toString()}` : ""}`;
+          try {
+            const dbData = await fetchJson(filteredPath);
+            const dbRows = Array.isArray(dbData && dbData.databases) ? dbData.databases : [];
+            if (dbRows.length) {
+              const groupedByRegionAccount = {};
+              dbRows.forEach(r => {
+                const reg = r.region || "unknown";
+                const acc = r.account_id || "unknown";
+                const key = `${reg}::${acc}`;
+                if (!groupedByRegionAccount[key]) groupedByRegionAccount[key] = { region: reg, account: acc, rows: [] };
+                groupedByRegionAccount[key].rows.push(r);
+              });
+              Object.values(groupedByRegionAccount).forEach(g => {
+                allRows.push(...toGlobalRows(demoGroupByInstance(g.rows), g.region, g.account));
+              });
+            }
+          } catch (err) {
+            // Fallback to existing expansion flow if API gateway route/query support is behind.
+            console.warn("Filtered /databases path unavailable, falling back to expanded fetch.", err);
           }
-        } else {
-          const regData = await fetchJson(`${BASE_URL}/regions`);
-          const regions = regData.regions || [];
-          for (const region of regions) {
+        }
+
+        if (!allRows.length) {
+          let effectiveRegion = null;
+          let effectiveAccount = null;
+          let effectiveEngine = null;
+          if (filterRegion !== "all") effectiveRegion = filterRegion;
+          if (filterAccount !== "all") effectiveAccount = filterAccount;
+          if (filterEngine !== "all") effectiveEngine = filterEngine;
+
+          if (scope === "current") {
+            const region = effectiveRegion || regionSelect.value;
+            const accountId = effectiveAccount || accountSelect.value;
+            if (!region || !accountId) throw new Error("Select region and account first.");
+            const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
+            const flat = toGlobalRows(data.instances || [], region, accountId);
+            const filtered = effectiveEngine ? flat.filter(r => canonicalEngineKey(r.engine) === canonicalEngineKey(effectiveEngine)) : flat;
+            allRows.push(...filtered);
+          } else if (scope === "region") {
+            const region = effectiveRegion || regionSelect.value;
+            if (!region) throw new Error("Select a region first.");
             const accData = await fetchJson(`${BASE_URL}/accounts?region=${encodeURIComponent(region)}`);
             const accounts = accData.accounts || [];
             for (const accountId of accounts) {
+              if (effectiveAccount && accountId !== effectiveAccount) continue;
               const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
-              allRows.push(...toGlobalRows(data.instances || [], region, accountId));
+              const flat = toGlobalRows(data.instances || [], region, accountId);
+              const filtered = effectiveEngine ? flat.filter(r => canonicalEngineKey(r.engine) === canonicalEngineKey(effectiveEngine)) : flat;
+              allRows.push(...filtered);
+            }
+          } else {
+            const regData = await fetchJson(`${BASE_URL}/regions`);
+            const regions = regData.regions || [];
+            for (const region of regions) {
+              if (effectiveRegion && region !== effectiveRegion) continue;
+              const accData = await fetchJson(`${BASE_URL}/accounts?region=${encodeURIComponent(region)}`);
+              const accounts = accData.accounts || [];
+              for (const accountId of accounts) {
+                if (effectiveAccount && accountId !== effectiveAccount) continue;
+                const data = await fetchJson(`${BASE_URL}/accounts/${encodeURIComponent(accountId)}/instances?region=${encodeURIComponent(region)}`);
+                const flat = toGlobalRows(data.instances || [], region, accountId);
+                const filtered = effectiveEngine ? flat.filter(r => canonicalEngineKey(r.engine) === canonicalEngineKey(effectiveEngine)) : flat;
+                allRows.push(...filtered);
+              }
             }
           }
         }
 
         globalBrainSourceRows = allRows;
+        // Preserve selected filter values after option refresh.
+        const preserved = {
+          region: filterRegion,
+          account: filterAccount,
+          engine: filterEngine,
+        };
         populateGlobalFilterOptions(globalBrainSourceRows);
+        if (globalRegionFilterSelect && (preserved.region === "all" || [...globalRegionFilterSelect.options].some(o => o.value === preserved.region))) {
+          globalRegionFilterSelect.value = preserved.region;
+        }
+        if (globalAccountFilterSelect && (preserved.account === "all" || [...globalAccountFilterSelect.options].some(o => o.value === preserved.account))) {
+          globalAccountFilterSelect.value = preserved.account;
+        }
+        if (globalEngineFilterSelect && (preserved.engine === "all" || [...globalEngineFilterSelect.options].some(o => o.value === preserved.engine))) {
+          globalEngineFilterSelect.value = preserved.engine;
+        }
         applyGlobalFilters();
-        setStatus(`Global inventory ready for ${scopeLabel} (${allRows.length} flattened row(s)).`, "success");
+        setStatus(`Global inventory ready for ${scopeLabel}${filterLabel} (${allRows.length} flattened row(s)).`, "success");
       } catch (e) {
         console.error(e);
         globalBrainSourceRows = [];
