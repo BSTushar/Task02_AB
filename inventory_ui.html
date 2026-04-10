@@ -457,6 +457,68 @@
       </div>
       </div>
 
+      <!-- Global Brain (all regions/accounts) -->
+      <section class="py-8 pb-16 border-b border-white/[0.06]">
+        <div class="flex flex-col gap-3 mb-4">
+          <div class="flex items-center gap-2">
+            <span class="w-[3px] h-[18px] rounded-sm section-accent-bar-reverse"></span>
+            <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Global inventory brain</h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="sr-only" for="globalScopeSelect">Global scope</label>
+            <select id="globalScopeSelect" class="story-select h-9 min-w-[13rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
+              <option value="current">Current account (selected region + account)</option>
+              <option value="region">Current region (all accounts in region)</option>
+              <option value="main">Main (all regions + all accounts)</option>
+            </select>
+            <label class="sr-only" for="globalRegionFilterSelect">Global region filter</label>
+            <select id="globalRegionFilterSelect" class="story-select h-9 min-w-[11rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
+              <option value="all">Region: all</option>
+            </select>
+            <label class="sr-only" for="globalAccountFilterSelect">Global account filter</label>
+            <select id="globalAccountFilterSelect" class="story-select h-9 min-w-[13rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
+              <option value="all">Account: all</option>
+            </select>
+            <label class="sr-only" for="globalEngineFilterSelect">Global engine filter</label>
+            <select id="globalEngineFilterSelect" class="story-select h-9 min-w-[11rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
+              <option value="all">Engine: all</option>
+              <option value="postgresql">postgresql</option>
+              <option value="mysql">mysql</option>
+              <option value="mongodb">mongodb</option>
+              <option value="none">none</option>
+            </select>
+            <button id="globalLoadBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/20 bg-white/[0.06] text-slate-200 hover:bg-white/[0.1]">
+              Load data
+            </button>
+            <button id="downloadCsvBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              Download CSV
+            </button>
+            <button id="downloadExcelBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              Download Excel
+            </button>
+          </div>
+        </div>
+        <p id="globalMeta" class="text-[11px] text-slate-400 m-0 mb-3">Choose scope and optional filters (region/account/engine), then click <strong class="text-slate-200">Load data</strong>.</p>
+
+        <div class="rounded-xl overflow-hidden border border-white/[0.06] bg-white/[0.03] glass-surface shadow-[0_20px_64px_-40px_rgba(0,0,0,0.5)]">
+          <div class="hidden md:grid md:grid-cols-[0.9fr_1fr_1.4fr_1.1fr_1fr_1fr_1.2fr_1.1fr_0.8fr] gap-0 text-[10px] tracking-widest uppercase text-slate-400 border-b border-white/[0.06]">
+            <div class="px-3 py-2.5">Region</div>
+            <div class="px-3 py-2.5">Account</div>
+            <div class="px-3 py-2.5">Instance</div>
+            <div class="px-3 py-2.5">Instance Name</div>
+            <div class="px-3 py-2.5">EC2 State</div>
+            <div class="px-3 py-2.5">Engine</div>
+            <div class="px-3 py-2.5">DB ID / Version</div>
+            <div class="px-3 py-2.5">Discovery</div>
+            <div class="px-3 py-2.5">Port</div>
+          </div>
+          <div id="globalRows" class="max-h-[420px] overflow-auto divide-y divide-white/[0.06]"></div>
+        </div>
+        <div id="globalEmpty" class="mt-4 text-center text-sm text-slate-300 px-4 py-7 border border-dashed border-white/15 rounded-xl bg-white/[0.02]">
+          No global dataset loaded yet.
+        </div>
+      </section>
+
       <!-- Engine cards (storytelling style) -->
       <section class="py-8 border-b border-white/[0.06]">
         <div class="flex items-center gap-2 mb-6">
@@ -532,51 +594,6 @@
         </div>
       </section>
 
-      <!-- Global Brain (all regions/accounts) -->
-      <section class="py-8 pb-16 border-t border-white/[0.06]">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div class="flex items-center gap-2">
-            <span class="w-[3px] h-[18px] rounded-sm section-accent-bar-reverse"></span>
-            <h2 class="text-[13px] font-semibold text-slate-200 tracking-wide m-0">Global inventory brain</h2>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <label class="sr-only" for="globalScopeSelect">Global scope</label>
-            <select id="globalScopeSelect" class="story-select h-9 min-w-[13rem] rounded-full pl-3 pr-8 text-[12px] leading-none cursor-pointer">
-              <option value="current">Current account (selected region + account)</option>
-              <option value="region">Current region (all accounts in region)</option>
-              <option value="main">Main (all regions + all accounts)</option>
-            </select>
-            <button id="globalLoadBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/20 bg-white/[0.06] text-slate-200 hover:bg-white/[0.1]">
-              Load data
-            </button>
-            <button id="downloadCsvBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-              Download CSV
-            </button>
-            <button id="downloadExcelBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-              Download Excel
-            </button>
-          </div>
-        </div>
-        <p id="globalMeta" class="text-[11px] text-slate-400 m-0 mb-3">Choose scope, then click <strong class="text-slate-200">Load data</strong> to build an exportable dataset.</p>
-
-        <div class="rounded-xl overflow-hidden border border-white/[0.06] bg-white/[0.03] glass-surface shadow-[0_20px_64px_-40px_rgba(0,0,0,0.5)]">
-          <div class="hidden md:grid md:grid-cols-[0.9fr_1fr_1.4fr_1.1fr_1fr_1fr_1.2fr_1.1fr_0.8fr] gap-0 text-[10px] tracking-widest uppercase text-slate-400 border-b border-white/[0.06]">
-            <div class="px-3 py-2.5">Region</div>
-            <div class="px-3 py-2.5">Account</div>
-            <div class="px-3 py-2.5">Instance</div>
-            <div class="px-3 py-2.5">Instance Name</div>
-            <div class="px-3 py-2.5">EC2 State</div>
-            <div class="px-3 py-2.5">Engine</div>
-            <div class="px-3 py-2.5">DB ID / Version</div>
-            <div class="px-3 py-2.5">Discovery</div>
-            <div class="px-3 py-2.5">Port</div>
-          </div>
-          <div id="globalRows" class="max-h-[420px] overflow-auto divide-y divide-white/[0.06]"></div>
-        </div>
-        <div id="globalEmpty" class="mt-4 text-center text-sm text-slate-300 px-4 py-7 border border-dashed border-white/15 rounded-xl bg-white/[0.02]">
-          No global dataset loaded yet.
-        </div>
-      </section>
     </div>
     </main>
 
@@ -719,6 +736,9 @@
     const topologyEmpty = document.getElementById("topologyEmpty");
     const globalLoadBtn = document.getElementById("globalLoadBtn");
     const globalScopeSelect = document.getElementById("globalScopeSelect");
+    const globalRegionFilterSelect = document.getElementById("globalRegionFilterSelect");
+    const globalAccountFilterSelect = document.getElementById("globalAccountFilterSelect");
+    const globalEngineFilterSelect = document.getElementById("globalEngineFilterSelect");
     const downloadCsvBtn = document.getElementById("downloadCsvBtn");
     const downloadExcelBtn = document.getElementById("downloadExcelBtn");
     const globalRowsEl = document.getElementById("globalRows");
@@ -729,6 +749,7 @@
     let viewRegion = "";
     let viewAccount = "";
     let globalBrainRows = [];
+    let globalBrainSourceRows = [];
     let useDemoData = false;
     let demoReason = "";
     /** null = default focus (first instance with DBs, else first row) */
@@ -1358,12 +1379,57 @@
       ];
     }
 
+    function canonicalEngineKey(engine) {
+      const raw = (engine || "").toLowerCase().trim();
+      if (raw === "postgres") return "postgresql";
+      return raw || "none";
+    }
+
+    function populateGlobalFilterOptions(rows) {
+      if (!globalRegionFilterSelect || !globalAccountFilterSelect || !globalEngineFilterSelect) return;
+      const list = rows || [];
+      const selectedRegion = globalRegionFilterSelect.value || "all";
+      const selectedAccount = globalAccountFilterSelect.value || "all";
+      const selectedEngine = globalEngineFilterSelect.value || "all";
+
+      const regions = uniqueSorted(list.map(r => r.region));
+      const accounts = uniqueSorted(list.map(r => r.account_id));
+      const engines = uniqueSorted(list.map(r => canonicalEngineKey(r.engine)));
+
+      globalRegionFilterSelect.innerHTML = `<option value="all">Region: all</option>` +
+        regions.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+      globalAccountFilterSelect.innerHTML = `<option value="all">Account: all</option>` +
+        accounts.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(accountOptionLabel(v))}</option>`).join("");
+      globalEngineFilterSelect.innerHTML = `<option value="all">Engine: all</option>` +
+        engines.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+
+      if (regions.includes(selectedRegion)) globalRegionFilterSelect.value = selectedRegion;
+      if (accounts.includes(selectedAccount)) globalAccountFilterSelect.value = selectedAccount;
+      if (engines.includes(selectedEngine)) globalEngineFilterSelect.value = selectedEngine;
+    }
+
+    function applyGlobalFilters() {
+      const base = globalBrainSourceRows || [];
+      const regionV = (globalRegionFilterSelect && globalRegionFilterSelect.value) || "all";
+      const accountV = (globalAccountFilterSelect && globalAccountFilterSelect.value) || "all";
+      const engineV = (globalEngineFilterSelect && globalEngineFilterSelect.value) || "all";
+      const filtered = base.filter(r => {
+        if (regionV !== "all" && r.region !== regionV) return false;
+        if (accountV !== "all" && r.account_id !== accountV) return false;
+        if (engineV !== "all" && canonicalEngineKey(r.engine) !== engineV) return false;
+        return true;
+      });
+      renderGlobalBrain(filtered);
+    }
+
     function renderGlobalBrain(rows) {
       globalBrainRows = rows || [];
       const regions = new Set(globalBrainRows.map(r => r.region)).size;
       const accounts = new Set(globalBrainRows.map(r => r.account_id)).size;
       const hosts = new Set(globalBrainRows.map(r => r.instance_id)).size;
-      globalMetaEl.textContent = `${globalBrainRows.length} row(s) · ${hosts} instance(s) · ${accounts} account(s) · ${regions} region(s)`;
+      const baseCount = (globalBrainSourceRows || []).length;
+      const suffix = baseCount && baseCount !== globalBrainRows.length ? ` (filtered from ${baseCount})` : "";
+      globalMetaEl.textContent = `${globalBrainRows.length} row(s) · ${hosts} instance(s) · ${accounts} account(s) · ${regions} region(s)${suffix}`;
 
       if (!globalBrainRows.length) {
         globalRowsEl.innerHTML = "";
@@ -1465,10 +1531,14 @@
           }
         }
 
-        renderGlobalBrain(allRows);
+        globalBrainSourceRows = allRows;
+        populateGlobalFilterOptions(globalBrainSourceRows);
+        applyGlobalFilters();
         setStatus(`Global inventory ready for ${scopeLabel} (${allRows.length} flattened row(s)).`, "success");
       } catch (e) {
         console.error(e);
+        globalBrainSourceRows = [];
+        populateGlobalFilterOptions([]);
         globalMetaEl.textContent = "Failed to build global inventory.";
         setStatus("Failed loading global inventory.", "error");
       } finally {
@@ -1609,6 +1679,9 @@
     accountSelect.addEventListener("change", () => loadInstances());
     refreshBtn.addEventListener("click", () => loadRegions());
     globalLoadBtn.addEventListener("click", () => loadGlobalBrain());
+    globalRegionFilterSelect.addEventListener("change", () => applyGlobalFilters());
+    globalAccountFilterSelect.addEventListener("change", () => applyGlobalFilters());
+    globalEngineFilterSelect.addEventListener("change", () => applyGlobalFilters());
     downloadCsvBtn.addEventListener("click", () => downloadGlobalCsv());
     downloadExcelBtn.addEventListener("click", () => downloadGlobalExcel());
 
