@@ -589,6 +589,81 @@
 
   <script>
     const BASE_URL = "https://o9v2qz6dq2.execute-api.ap-south-1.amazonaws.com/prod";
+    const IS_LOCAL_FILE = window.location.protocol === "file:";
+    const DEMO_RECORDS = [
+      {
+        account_id: "987213268214",
+        instance_id: "i-0demo001",
+        region: "ap-south-1",
+        instance_type: "t3.medium",
+        tags: { Name: "demo-mysql-01", Environment: "demo" },
+        db_id: "mysql-3306",
+        engine: "mysql",
+        version: "8.0.35",
+        status: "running",
+        port: 3306,
+        data_size_mb: 2048,
+        system_memory_mb: 4096,
+        system_cpu_cores: 2,
+        discovery_timestamp: "2026-04-10T09:00:00Z",
+        discovery_status: "success",
+        ec2_state: "running",
+      },
+      {
+        account_id: "987213268214",
+        instance_id: "i-0demo001",
+        region: "ap-south-1",
+        instance_type: "t3.medium",
+        tags: { Name: "demo-mysql-01", Environment: "demo" },
+        db_id: "postgres-5432",
+        engine: "postgresql",
+        version: "15.6",
+        status: "running",
+        port: 5432,
+        data_size_mb: 1310,
+        system_memory_mb: 4096,
+        system_cpu_cores: 2,
+        discovery_timestamp: "2026-04-10T09:00:00Z",
+        discovery_status: "success",
+        ec2_state: "running",
+      },
+      {
+        account_id: "349865003021",
+        instance_id: "i-0demo002",
+        region: "eu-west-1",
+        instance_type: "t3.large",
+        tags: { Name: "demo-mongo-01", Environment: "demo" },
+        db_id: "mongo-27017",
+        engine: "mongodb",
+        version: "7.0.8",
+        status: "running",
+        port: 27017,
+        data_size_mb: 3750,
+        system_memory_mb: 8192,
+        system_cpu_cores: 2,
+        discovery_timestamp: "2026-04-10T09:00:00Z",
+        discovery_status: "success",
+        ec2_state: "running",
+      },
+      {
+        account_id: "599657398371",
+        instance_id: "i-0demo003",
+        region: "ap-south-1",
+        instance_type: "t3.small",
+        tags: { Name: "demo-empty-01", Environment: "demo" },
+        db_id: "none",
+        engine: "none",
+        version: "",
+        status: "",
+        port: 0,
+        data_size_mb: 0,
+        system_memory_mb: 2048,
+        system_cpu_cores: 2,
+        discovery_timestamp: "2026-04-10T09:00:00Z",
+        discovery_status: "success",
+        ec2_state: "stopped",
+      },
+    ];
 
     const ACCOUNT_LABELS = {
       "987213268214": "DEMOR1",
@@ -654,6 +729,8 @@
     let viewRegion = "";
     let viewAccount = "";
     let globalBrainRows = [];
+    let useDemoData = false;
+    let demoReason = "";
     /** null = default focus (first instance with DBs, else first row) */
     let topologySelectedInstanceId = null;
 
@@ -689,13 +766,96 @@
       }
     }
 
-    async function fetchJson(url) {
-      const res = await fetch(url);
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text}`);
+    function uniqueSorted(values) {
+      return [...new Set((values || []).filter(Boolean))].sort();
+    }
+
+    function demoGroupByInstance(items) {
+      const byInstance = {};
+      (items || []).forEach(i => {
+        const inst = i.instance_id || "unknown";
+        if (!byInstance[inst]) {
+          byInstance[inst] = {
+            instance_id: inst,
+            instance_type: i.instance_type || "unknown",
+            tags: i.tags && typeof i.tags === "object" ? i.tags : {},
+            databases: [],
+            system_memory_mb: i.system_memory_mb || 0,
+            system_cpu_cores: i.system_cpu_cores || 0,
+            discovery_timestamp: i.discovery_timestamp || null,
+            discovery_status: i.discovery_status || "unknown",
+            ec2_state: i.ec2_state || "",
+          };
+        }
+        if (i.db_id && i.db_id !== "none" && i.db_id !== "discovery_failed") {
+          byInstance[inst].databases.push({
+            db_id: i.db_id || "",
+            engine: i.engine || "",
+            version: i.version || "",
+            status: i.status || "",
+            port: i.port || 0,
+            data_size_mb: i.data_size_mb || 0,
+          });
+        }
+      });
+      return Object.values(byInstance);
+    }
+
+    function demoApiResponse(url) {
+      const req = new URL(url, window.location.href);
+      const base = new URL(BASE_URL, window.location.href);
+      const basePath = (base.pathname || "").replace(/\/+$/, "");
+      let path = req.pathname || "/";
+      if (basePath && path.startsWith(basePath)) path = path.slice(basePath.length) || "/";
+      if (!path.startsWith("/")) path = "/" + path;
+
+      const region = req.searchParams.get("region") || "";
+      if (path === "/regions") {
+        return { regions: uniqueSorted(DEMO_RECORDS.map(r => r.region)) };
       }
-      return res.json();
+      if (path === "/accounts") {
+        const rows = region ? DEMO_RECORDS.filter(r => r.region === region) : DEMO_RECORDS;
+        return { accounts: uniqueSorted(rows.map(r => r.account_id)) };
+      }
+      const match = path.match(/^\/accounts\/([^/]+)\/instances\/?$/);
+      if (match) {
+        const accountId = decodeURIComponent(match[1]);
+        const rows = DEMO_RECORDS.filter(r => r.account_id === accountId && (!region || r.region === region));
+        return { account_id: accountId, instances: demoGroupByInstance(rows) };
+      }
+      throw new Error(`Demo mode does not support endpoint: ${path}`);
+    }
+
+    function enableDemoMode(reason) {
+      if (useDemoData) return;
+      useDemoData = true;
+      demoReason = reason || "API unavailable.";
+      setBadge("Demo mode", "warn");
+      setStatus(`${demoReason}\nLoaded bundled sample inventory so this HTML still works offline.`, "info");
+    }
+
+    async function fetchJson(url) {
+      if (useDemoData) return demoApiResponse(url);
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          const text = await res.text();
+          if (IS_LOCAL_FILE || res.status >= 500 || [401, 403, 404].includes(res.status)) {
+            enableDemoMode(`Could not read live API data (HTTP ${res.status}).`);
+            return demoApiResponse(url);
+          }
+          throw new Error(`HTTP ${res.status}: ${text}`);
+        }
+        return res.json();
+      } catch (err) {
+        const msg = String((err && err.message) || "");
+        const likelyNetwork = /failed to fetch|networkerror|load failed|cors|fetch/i.test(msg.toLowerCase());
+        if (IS_LOCAL_FILE || likelyNetwork) {
+          enableDemoMode(IS_LOCAL_FILE ? "Opened as a local file (file://). Browser blocked API calls." : "Live API is not reachable from this browser/session.");
+          return demoApiResponse(url);
+        }
+        throw err;
+      }
     }
 
     function renderEngineCards(engineCounts) {
@@ -1322,7 +1482,11 @@
       setStatus("Fetching /regions from API.");
       try {
         const data = await fetchJson(`${BASE_URL}/regions`);
-        const regions = data.regions || [];
+        let regions = data.regions || [];
+        if (!regions.length && IS_LOCAL_FILE && !useDemoData) {
+          enableDemoMode("Live API returned no regions for this local HTML.");
+          regions = (demoApiResponse(`${BASE_URL}/regions`).regions || []);
+        }
         regionSelect.innerHTML = "";
         regions.forEach(r => {
           const opt = document.createElement("option");
@@ -1337,8 +1501,13 @@
         }
         regionSelect.value = regions[0];
         await loadAccounts();
-        setBadge("✓ API ready", "ok");
-        setStatus(`Regions loaded (${regions.length}). Pick account or change region.`, "success");
+        if (useDemoData) {
+          setBadge("Demo mode", "warn");
+          setStatus(`Regions loaded from bundled sample data (${regions.length}). Update BASE_URL + run discovery for live inventory.`, "info");
+        } else {
+          setBadge("✓ API ready", "ok");
+          setStatus(`Regions loaded (${regions.length}). Pick account or change region.`, "success");
+        }
       } catch (e) {
         console.error(e);
         setStatus("Failed to load regions.", "error");
