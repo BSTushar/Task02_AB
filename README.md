@@ -121,6 +121,51 @@ Lambda returns **CORS** headers and handles **OPTIONS** for browser clients.
 
 Full detail: [api/api-gateway-config.md](api/api-gateway-config.md)
 
+## Third-party integration (PCP portal / Airbus dashboard)
+
+Use the API as a read-only data source for internal dashboards. Recommended patterns:
+
+- **Direct client-side fetch** (quickest): dashboard frontend calls API Gateway endpoints
+  - `GET /regions`
+  - `GET /accounts?region=<region>`
+  - `GET /accounts/{accountId}/instances?region=<region>`
+- **Backend proxy** (preferred for enterprise): PCP/Airbus backend calls this API and exposes normalized JSON to UI clients.
+
+### v2.3 API improvements
+
+`/databases` now supports richer server-side filters so PCP/Airbus portals can request exactly what they need:
+
+- `region=<aws-region>`
+- `account_id=<12-digit-account-id>`
+- `engine=<mysql|postgres|postgresql|mongodb|none>`
+- `instance_id=<ec2-instance-id>`
+- `discovery_status=<success|failed|...>`
+- `ec2_state=<running|stopped|...>`
+
+### Suggested contract for dashboard consumers
+
+1. Load regions.
+2. Load accounts for selected region.
+3. Load grouped instances for selected account + region.
+4. Apply client filters (engine, status, etc.) or call dedicated backend filtering if needed.
+
+### Security and access recommendations
+
+- Put API Gateway behind the organization identity model:
+  - Cognito/JWT authorizer or IAM auth
+  - Optional API key + usage plan for partner/internal apps
+- Restrict CORS origins to known portal domains in production.
+- For cross-org integrations, front the API with an internal service gateway/reverse proxy and enforce RBAC there.
+- Add CloudWatch metrics/alarms and access logs for auditability.
+
+### Example (backend-to-backend fetch)
+
+```bash
+curl "https://YOUR_API_ID.execute-api.REGION.amazonaws.com/prod/regions"
+curl "https://YOUR_API_ID.execute-api.REGION.amazonaws.com/prod/accounts?region=ap-south-1"
+curl "https://YOUR_API_ID.execute-api.REGION.amazonaws.com/prod/accounts/123456789012/instances?region=ap-south-1"
+```
+
 ### Example (`/instances` grouped)
 
 ```json
