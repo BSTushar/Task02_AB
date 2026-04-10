@@ -1,4 +1,4 @@
-# Task_02: Database Discovery on EC2 Across AWS Accounts
+# AWS Database Discovery
 
 **Discover databases (MySQL, PostgreSQL, MongoDB) on EC2 across AWS accounts — no SSH — and expose results via a REST API and optional web UI.**
 
@@ -8,7 +8,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11-blue)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Repository:** [github.com/BSTushar/Task02_AB](https://github.com/BSTushar/Task02_AB)
+**Repository:** [github.com/BSTushar/AWS_Database_Discovery](https://github.com/BSTushar/AWS_Database_Discovery)
 
 ---
 
@@ -50,8 +50,8 @@ Management Account                           Spoke Accounts
 
 1. **Clone**
    ```bash
-   git clone https://github.com/BSTushar/Task02_AB.git
-   cd Task02_AB
+   git clone https://github.com/BSTushar/AWS_Database_Discovery.git
+   cd AWS_Database_Discovery
    ```
 
 2. **Deploy / configure** — Follow [FULL_SETUP_IN_ORDER.md](FULL_SETUP_IN_ORDER.md) (S3, Lambdas, API, IAM, spokes). Spoke bulk install: [automation/STACKSET_AUTOMATION.md](automation/STACKSET_AUTOMATION.md).
