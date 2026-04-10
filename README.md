@@ -131,6 +131,17 @@ Use the API as a read-only data source for internal dashboards. Recommended patt
   - `GET /accounts/{accountId}/instances?region=<region>`
 - **Backend proxy** (preferred for enterprise): PCP/Airbus backend calls this API and exposes normalized JSON to UI clients.
 
+### v2.3 API improvements
+
+`/databases` now supports richer server-side filters so PCP/Airbus portals can request exactly what they need:
+
+- `region=<aws-region>`
+- `account_id=<12-digit-account-id>`
+- `engine=<mysql|postgres|postgresql|mongodb|none>`
+- `instance_id=<ec2-instance-id>`
+- `discovery_status=<success|failed|...>`
+- `ec2_state=<running|stopped|...>`
+
 ### Suggested contract for dashboard consumers
 
 1. Load regions.

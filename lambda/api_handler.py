@@ -23,6 +23,7 @@ RESULTS_S3_KEY = os.environ.get("RESULTS_S3_KEY", "discovery/inventory.json")
 SPOKE_ROLE_NAME = os.environ.get("SPOKE_ROLE_NAME", "DBDiscoverySpokeRole")
 # Live EC2 state for /instances (red/green UI). Requires API Lambda IAM: sts:AssumeRole on spoke role.
 API_ENRICH_EC2_STATE = os.environ.get("API_ENRICH_EC2_STATE", "true").lower() in ("1", "true", "yes")
+API_VERSION = "2.3"
 
 
 def http_response(status_code, body, is_json=True):
@@ -74,6 +75,66 @@ def load_all_records():
 
 def query_by_account(account_id):
     return [i for i in load_all_records() if isinstance(i, dict) and i.get("account_id") == account_id]
+
+
+def _norm_text(v):
+    return str(v).strip() if v is not None else ""
+
+
+def canonical_engine_name(v):
+    """Normalize engine aliases to a stable value for filtering."""
+    e = _norm_text(v).lower()
+    if e == "postgres":
+        return "postgresql"
+    return e
+
+
+def _to_bool(v, default=None):
+    if v is None:
+        return default
+    s = _norm_text(v).lower()
+    if s in ("1", "true", "yes", "y", "on"):
+        return True
+    if s in ("0", "false", "no", "n", "off"):
+        return False
+    return default
+
+
+def apply_record_filters(items, qs):
+    """Filter flat inventory records by common query parameters."""
+    if not isinstance(qs, dict):
+        qs = {}
+    region_q = _norm_text(qs.get("region"))
+    account_q = _norm_text(qs.get("account_id"))
+    instance_q = _norm_text(qs.get("instance_id"))
+    discovery_q = _norm_text(qs.get("discovery_status")).lower()
+    ec2_q = _norm_text(qs.get("ec2_state")).lower()
+    engine_q = canonical_engine_name(qs.get("engine"))
+    db_status_q = _norm_text(qs.get("db_status")).lower()
+    include_empty = _to_bool(qs.get("include_empty"), default=True)
+
+    out = []
+    for i in items:
+        if not isinstance(i, dict):
+            continue
+        if region_q and i.get("region") != region_q:
+            continue
+        if account_q and i.get("account_id") != account_q:
+            continue
+        if instance_q and i.get("instance_id") != instance_q:
+            continue
+        if discovery_q and _norm_text(i.get("discovery_status")).lower() != discovery_q:
+            continue
+        if ec2_q and _norm_text(i.get("ec2_state")).lower() != ec2_q:
+            continue
+        if engine_q and canonical_engine_name(i.get("engine")) != engine_q:
+            continue
+        if db_status_q and _norm_text(i.get("status")).lower() != db_status_q:
+            continue
+        if not include_empty and _norm_text(i.get("db_id")).lower() in ("", "none", "discovery_failed"):
+            continue
+        out.append(i)
+    return out
 
 
 def group_by_instance(items):
@@ -194,9 +255,16 @@ def _api_root_response():
     items = load_all_records()
     body = {
         "service": "db-discovery-api",
+        "api_version": API_VERSION,
         "total_records": len(items),
         "store": "s3",
-        "endpoints": ["/health", "/regions", "/accounts", "/databases", "/accounts/{accountId}/instances"],
+        "endpoints": [
+            "/health",
+            "/regions",
+            "/accounts",
+            "/databases",
+            "/accounts/{accountId}/instances",
+        ],
     }
     return http_response(200, body)
 
@@ -219,6 +287,20 @@ def _should_serve_api_root(path_segments):
     return True
 
 
+def _path_account_id(path_segments, path_params):
+    """Resolve account id from either API Gateway path params or proxy path segments."""
+    account_id = (path_params or {}).get("accountId")
+    if account_id:
+        return str(account_id)
+    if "accounts" in path_segments:
+        idx = path_segments.index("accounts")
+        if idx + 1 < len(path_segments):
+            candidate = path_segments[idx + 1]
+            if candidate and candidate.lower() != "instances":
+                return candidate
+    return ""
+
+
 def lambda_handler(event, context):
     if not isinstance(event, dict):
         event = {}
@@ -239,18 +321,29 @@ def lambda_handler(event, context):
             method = (m or "").upper()
     if method == "OPTIONS":
         return http_response(200, "", is_json=False)
+    qs = event.get("queryStringParameters") or {}
+    if not isinstance(qs, dict):
+        qs = {}
 
     try:
         if "/health" in path or path_stripped.endswith("/health") or path_segments == ["health"]:
             items = load_all_records()
-            return http_response(200, {"status": "ok", "total_records": len(items), "store": "s3"})
+            return http_response(
+                200,
+                {
+                    "status": "ok",
+                    "api_version": API_VERSION,
+                    "total_records": len(items),
+                    "store": "s3",
+                },
+            )
 
         # Bare invoke URL is often /{stage} only (e.g. /prod) — API Gateway sends one path segment.
         if _should_serve_api_root(path_segments):
             return _api_root_response()
 
         if path_segments and path_segments[-1].lower() == "regions" and "accounts" not in path.lower():
-            items = load_all_records()
+            items = apply_record_filters(load_all_records(), qs)
             regions = sorted(set(i.get("region") for i in items if isinstance(i, dict) and i.get("region")))
             return http_response(200, {"regions": to_json_serializable(regions)})
 
@@ -261,11 +354,13 @@ def lambda_handler(event, context):
                 region = path_segments[idx + 1]
             except (ValueError, IndexError):
                 return http_response(400, {"error": "Invalid region path"})
-            items = load_all_records()
+            scoped_qs = dict(qs)
+            scoped_qs["region"] = region
+            items = apply_record_filters(load_all_records(), scoped_qs)
             accounts = sorted(set(
                 i.get("account_id")
                 for i in items
-                if isinstance(i, dict) and i.get("account_id") and i.get("region") == region
+                if isinstance(i, dict) and i.get("account_id")
             ))
             return http_response(200, {"region": region, "accounts": to_json_serializable(accounts)})
 
@@ -277,46 +372,29 @@ def lambda_handler(event, context):
             and "instances" not in path.lower()
         )
         if is_list_accounts:
-            items = load_all_records()
-            qs_accounts = event.get("queryStringParameters") or {}
-            if not isinstance(qs_accounts, dict):
-                qs_accounts = {}
-            region_q = (qs_accounts.get("region") or "").strip()
+            items = apply_record_filters(load_all_records(), qs)
+            region_q = _norm_text(qs.get("region"))
             if region_q:
-                accounts = sorted(set(
-                    i.get("account_id")
-                    for i in items
-                    if isinstance(i, dict) and i.get("account_id") and i.get("region") == region_q
-                ))
+                accounts = sorted(set(i.get("account_id") for i in items if isinstance(i, dict) and i.get("account_id")))
                 return http_response(200, {"region": region_q, "accounts": to_json_serializable(accounts)})
             accounts = list(set(i.get("account_id", "unknown") for i in items if isinstance(i, dict) and i.get("account_id")))
             return http_response(200, {"accounts": to_json_serializable(accounts)})
 
-        qs = event.get("queryStringParameters") or {}
-        if not isinstance(qs, dict):
-            qs = {}
-        region_filter = (qs.get("region") or "").strip()
-
-        account_id = path_params.get("accountId")
+        region_filter = _norm_text(qs.get("region"))
+        account_id = _path_account_id(path_segments, path_params)
         if account_id:
             items = query_by_account(account_id)
-            if region_filter:
-                items = [i for i in items if isinstance(i, dict) and i.get("region") == region_filter]
-            if "/instances" in path or path.endswith(account_id):
+            items = apply_record_filters(items, qs)
+            is_instances_view = bool(path_segments and path_segments[-1].lower() == "instances")
+            if is_instances_view:
                 grouped = group_by_instance(items)
                 enrich_instances_ec2_state(grouped, account_id, region_filter)
                 return http_response(200, to_json_serializable({"account_id": account_id, "instances": grouped}))
             return http_response(200, to_json_serializable({"account_id": account_id, "records": items}))
 
         if path.endswith("/databases") or "/databases" in path:
-            items = load_all_records()
-            engine = qs.get("engine")
-            acc = qs.get("account_id")
-            if engine:
-                items = [i for i in items if isinstance(i, dict) and i.get("engine") == engine]
-            if acc:
-                items = [i for i in items if isinstance(i, dict) and i.get("account_id") == acc]
-            return http_response(200, to_json_serializable({"databases": items}))
+            items = apply_record_filters(load_all_records(), qs)
+            return http_response(200, to_json_serializable({"count": len(items), "databases": items}))
 
         return http_response(404, {"error": "Not found"})
 
