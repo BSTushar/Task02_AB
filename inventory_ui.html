@@ -416,11 +416,12 @@
             <select id="accountSelect" class="story-select h-10 min-w-[16.5rem] max-w-[min(100vw-2rem,22rem)] rounded-full pl-4 pr-9 text-[13px] leading-none cursor-pointer"></select>
             <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] pointer-events-none leading-none">▼</span>
           </div>
-          <button id="refreshBtn" type="button" class="inline-flex items-center justify-center h-10 rounded-full px-5 text-[13px] font-semibold leading-none cursor-pointer shrink-0">
+          <button id="refreshBtn" type="button" class="inline-flex items-center justify-center h-10 rounded-full px-5 text-[13px] font-semibold leading-none cursor-pointer shrink-0 disabled:opacity-45 disabled:cursor-not-allowed">
             ↻ Reload from API
           </button>
           <span id="statusBadge" class="text-xs text-slate-300 self-center max-w-md min-h-[1.25rem] flex items-center"></span>
         </div>
+        <p id="mainPullLockStatus" class="mt-2 text-[11px] text-amber-200/90 min-h-[1.25rem] max-w-3xl m-0"></p>
         <div id="statusLine" class="mt-3 text-xs min-h-[2.5rem] text-slate-300 whitespace-pre-line max-w-3xl"></div>
       </div>
     </div>
@@ -487,7 +488,7 @@
               <option value="mongodb">mongodb</option>
               <option value="none">none</option>
             </select>
-            <button id="globalLoadBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/20 bg-white/[0.06] text-slate-200 hover:bg-white/[0.1]">
+            <button id="globalLoadBtn" type="button" class="inline-flex items-center justify-center h-9 rounded-full px-4 text-[12px] font-semibold leading-none cursor-pointer border border-white/20 bg-white/[0.06] text-slate-200 hover:bg-white/[0.1] disabled:opacity-45 disabled:cursor-not-allowed">
               Load data
             </button>
             <input id="globalLockTokenInput" type="password" placeholder="Safety token (optional)" class="story-select h-9 min-w-[13rem] rounded-full px-3 text-[12px] leading-none" />
@@ -504,7 +505,7 @@
         </div>
         <div class="mb-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-3">
           <p class="text-[11px] text-slate-200 m-0"><strong>How to use:</strong> 1) Choose <strong>Scope</strong> (current/region/main), 2) click <strong>Load data</strong> once, 3) refine using Region/Account/Engine filters (no extra API calls), 4) use CSV/Excel export.</p>
-          <p class="text-[11px] text-slate-400 m-0 mt-2">Safety mode: after a successful pull, API reload is locked for <strong>6.5 hours</strong>. You can still filter loaded data instantly.</p>
+          <p class="text-[11px] text-slate-400 m-0 mt-2">Safety mode: one shared lock for <strong>Reload from API</strong> and <strong>Load data</strong> (new scope). After a successful pull, both are locked for <strong>6.5 hours</strong>. You can still filter already-loaded Global rows without new API calls.</p>
         </div>
         <p id="globalMeta" class="text-[11px] text-slate-400 m-0 mb-3">Choose scope and optional filters (region/account/engine), then click <strong class="text-slate-200">Load data</strong>.</p>
         <p id="globalLockStatus" class="text-[11px] text-amber-200/90 m-0 mb-3"></p>
@@ -759,6 +760,7 @@
     const globalLockTokenInput = document.getElementById("globalLockTokenInput");
     const globalUnlockBtn = document.getElementById("globalUnlockBtn");
     const globalLockStatusEl = document.getElementById("globalLockStatus");
+    const mainPullLockStatusEl = document.getElementById("mainPullLockStatus");
     const apiTryMeEndpointEl = document.getElementById("apiTryMeEndpoint");
     const apiTryMeCurlEl = document.getElementById("apiTryMeCurl");
     const downloadCsvBtn = document.getElementById("downloadCsvBtn");
@@ -781,6 +783,35 @@
     const GLOBAL_PULL_TTL_MS = Math.round(6.5 * 60 * 60 * 1000);
     const GLOBAL_PULL_LOCK_KEY = "dbdiscovery.globalPullLock.v1";
     let lockCountdownTimer = null;
+    let globalLoadInProgress = false;
+
+    function apiPullBlocked() {
+      return isBrainPullLocked() && !useDemoData;
+    }
+
+    function computeGlobalBrainNeedsPull() {
+      const scope = (globalScopeSelect && globalScopeSelect.value) || "main";
+      const sourceKey =
+        scope === "current"
+          ? `${scope}|${regionSelect.value || ""}|${accountSelect.value || ""}`
+          : scope === "region"
+          ? `${scope}|${regionSelect.value || ""}`
+          : "main|all";
+      return !globalBrainSourceRows.length || globalBrainSourceKey !== sourceKey;
+    }
+
+    function syncPullLockUi() {
+      const blocked = apiPullBlocked();
+      const needsGlobalPull = computeGlobalBrainNeedsPull();
+      if (refreshBtn) refreshBtn.disabled = blocked;
+      if (regionSelect) regionSelect.disabled = blocked;
+      if (accountSelect) accountSelect.disabled = blocked;
+      if (globalLoadBtn) {
+        globalLoadBtn.disabled = globalLoadInProgress || (blocked && needsGlobalPull);
+      }
+      if (globalLockTokenInput) globalLockTokenInput.disabled = false;
+      renderBrainLockStatus();
+    }
 
     function setStatus(msg, type = "info") {
       const colors = { info: "text-slate-200", success: "text-emerald-300", error: "text-red-400" };
@@ -1447,9 +1478,11 @@
       return true;
     }
 
-    function lockExpiryLabel(ts) {
+    function lockExpiryFullLabel(ts) {
       const d = new Date(Number(ts));
-      return Number.isFinite(d.getTime()) ? d.toLocaleTimeString() : "soon";
+      return Number.isFinite(d.getTime())
+        ? d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "medium" })
+        : "—";
     }
 
     function formatDuration(ms) {
@@ -1461,33 +1494,45 @@
     }
 
     function renderBrainLockStatus() {
-      if (!globalLockStatusEl || !globalUnlockBtn) return;
-      const lock = getBrainPullLock();
-      const locked = isBrainPullLocked();
       if (lockCountdownTimer) {
         clearInterval(lockCountdownTimer);
         lockCountdownTimer = null;
       }
-      if (!locked) {
-        globalLockStatusEl.textContent = "Safety lock is open. Next successful API pull will lock reload for 6h 30m.";
-        globalUnlockBtn.disabled = true;
-        return;
-      }
-      const until = lockExpiryLabel(lock.expiresAt);
-      const tokenHint = lock.token ? " Token required to unlock early." : "";
-      const refreshText = () => {
+      const lock = getBrainPullLock();
+      const locked = isBrainPullLocked();
+      const openMsg =
+        "Open — next successful Reload from API or Global Load data (new scope) starts a shared 6h 30m lock. Countdown shows here and below when active.";
+      const buildLockedMsg = () => {
         const remainMs = Math.max(0, Number(lock.expiresAt) - Date.now());
-        globalLockStatusEl.textContent = `Safety lock active until ${until} (next token window in ${formatDuration(remainMs)}).${tokenHint}`;
+        const at = lockExpiryFullLabel(lock.expiresAt);
+        const tokenHint = lock.token
+          ? " Early unlock: enter the same safety token and click Unlock."
+          : " Early unlock: click Unlock (no token was set on that pull).";
+        return `Locked — next pull allowed after ${at} · ${formatDuration(remainMs)} remaining.${tokenHint}`;
       };
-      refreshText();
-      lockCountdownTimer = setInterval(() => {
-        if (!isBrainPullLocked()) {
-          renderBrainLockStatus();
+      const applyTexts = () => {
+        if (!locked) {
+          if (globalLockStatusEl) globalLockStatusEl.textContent = openMsg;
+          if (mainPullLockStatusEl) mainPullLockStatusEl.textContent = openMsg;
+          if (globalUnlockBtn) globalUnlockBtn.disabled = true;
           return;
         }
-        refreshText();
-      }, 1000);
-      globalUnlockBtn.disabled = false;
+        const msg = buildLockedMsg();
+        if (globalLockStatusEl) globalLockStatusEl.textContent = msg;
+        if (mainPullLockStatusEl) mainPullLockStatusEl.textContent = msg;
+        if (globalUnlockBtn) globalUnlockBtn.disabled = false;
+      };
+      applyTexts();
+      if (locked) {
+        lockCountdownTimer = setInterval(() => {
+          if (!isBrainPullLocked()) {
+            renderBrainLockStatus();
+            syncPullLockUi();
+            return;
+          }
+          applyTexts();
+        }, 1000);
+      }
     }
 
     function escapeQueryValue(v) {
@@ -1667,14 +1712,15 @@
           : "main|all";
 
       const needsApiPull = !globalBrainSourceRows.length || globalBrainSourceKey !== sourceKey;
-      if (needsApiPull && isBrainPullLocked()) {
-        renderBrainLockStatus();
+      if (needsApiPull && apiPullBlocked()) {
+        syncPullLockUi();
         applyGlobalFilters();
-        setStatus("API pull is safety-locked for 6.5 hours. Use loaded data filters or unlock with token.", "info");
+        setStatus("API pull is safety-locked. Use filters on loaded data, wait for the timer, or Unlock.", "info");
         return;
       }
 
-      globalLoadBtn.disabled = true;
+      globalLoadInProgress = true;
+      syncPullLockUi();
       globalLoadBtn.textContent = "Loading…";
       globalMetaEl.textContent = "Loading source inventory for selected scope…";
       try {
@@ -1705,7 +1751,6 @@
           globalLastLoadedAt = Date.now();
           const token = (globalLockTokenInput && globalLockTokenInput.value || "").trim();
           setBrainPullLock(token);
-          renderBrainLockStatus();
         }
 
         populateGlobalFilterOptions(globalBrainSourceRows);
@@ -1715,12 +1760,24 @@
         console.error(e);
         setStatus("Failed loading global inventory.", "error");
       } finally {
-        globalLoadBtn.disabled = false;
+        globalLoadInProgress = false;
         globalLoadBtn.textContent = "Load data";
+        syncPullLockUi();
       }
     }
 
-    async function loadRegions() {
+    async function loadRegions(userInitiated = false) {
+      if (apiPullBlocked()) {
+        setBadge("Pull locked", "warn");
+        const lock = getBrainPullLock();
+        const remainMs = lock && lock.expiresAt ? Math.max(0, Number(lock.expiresAt) - Date.now()) : 0;
+        setStatus(
+          `Safety lock active — Reload from API is paused until ${lock ? lockExpiryFullLabel(lock.expiresAt) : "unlock"} (${formatDuration(remainMs)} left). Use Unlock below or wait.`,
+          "info"
+        );
+        syncPullLockUi();
+        return;
+      }
       setBadge("Loading regions…", "warn");
       setStatus("Fetching /regions from API.");
       try {
@@ -1744,6 +1801,11 @@
         }
         regionSelect.value = regions[0];
         await loadAccounts();
+        if (!useDemoData && regions.length && userInitiated) {
+          const token = (globalLockTokenInput && globalLockTokenInput.value || "").trim();
+          setBrainPullLock(token);
+        }
+        syncPullLockUi();
         if (useDemoData) {
           setBadge("Demo mode", "warn");
           setStatus(`Regions loaded from bundled sample data (${regions.length}). Update BASE_URL + run discovery for live inventory.`, "info");
@@ -1755,12 +1817,20 @@
         console.error(e);
         setStatus("Failed to load regions.", "error");
         setBadge("API error", "err");
+      } finally {
+        syncPullLockUi();
       }
     }
 
     async function loadAccounts() {
       const region = regionSelect.value;
       if (!region) return;
+      if (apiPullBlocked()) {
+        setStatus("Safety lock active — cannot change region/account via API. Unlock or wait for the timer.", "info");
+        setBadge("Pull locked", "warn");
+        syncPullLockUi();
+        return;
+      }
       setBadge("Loading accounts…", "warn");
       setStatus(`Loading accounts for ${region}…`);
       try {
@@ -1804,6 +1874,12 @@
       const region = regionSelect.value;
       const account = accountSelect.value;
       if (!region || !account) return;
+      if (apiPullBlocked()) {
+        setStatus("Safety lock active — instance list refresh is paused. Unlock or wait.", "info");
+        setBadge("Pull locked", "warn");
+        syncPullLockUi();
+        return;
+      }
       setBadge("Loading instances…", "warn");
       setStatus(`Loading instances for ${account}…`);
       try {
@@ -1850,15 +1926,16 @@
 
     regionSelect.addEventListener("change", () => loadAccounts());
     accountSelect.addEventListener("change", () => loadInstances());
-    refreshBtn.addEventListener("click", () => loadRegions());
+    refreshBtn.addEventListener("click", () => loadRegions(true));
     globalLoadBtn.addEventListener("click", () => loadGlobalBrain());
+    globalScopeSelect.addEventListener("change", () => syncPullLockUi());
     globalRegionFilterSelect.addEventListener("change", () => applyGlobalFilters());
     globalAccountFilterSelect.addEventListener("change", () => applyGlobalFilters());
     globalEngineFilterSelect.addEventListener("change", () => applyGlobalFilters());
-    globalUnlockBtn.addEventListener("click", () => {
+    globalUnlockBtn.addEventListener("click", async () => {
       const lock = getBrainPullLock();
       if (!lock) {
-        renderBrainLockStatus();
+        syncPullLockUi();
         return;
       }
       const entered = (globalLockTokenInput && globalLockTokenInput.value || "").trim();
@@ -1867,8 +1944,9 @@
         return;
       }
       clearBrainPullLock();
-      renderBrainLockStatus();
-      setStatus("Safety lock cleared. You can pull data again now.", "success");
+      setStatus("Safety lock cleared. Refreshing from API…", "success");
+      syncPullLockUi();
+      await loadRegions(true);
     });
     globalLockTokenInput.addEventListener("keydown", e => {
       if (e.key !== "Enter") return;
@@ -1897,9 +1975,9 @@
     });
 
     renderTryMeBlock();
-    renderBrainLockStatus();
+    syncPullLockUi();
     (async () => {
-      await loadRegions();
+      await loadRegions(false);
     })();
   </script>
 </body>
