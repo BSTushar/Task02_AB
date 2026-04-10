@@ -1977,7 +1977,7 @@
         }
         accountSelect.value = accounts[0];
         await loadInstances();
-        setBadge("✓ Accounts loaded", "ok");
+        setBadge(useDemoData ? "✓ Accounts loaded (sample)" : "✓ Accounts loaded", "ok");
         setStatus(`${accounts.length} account(s) in ${region}. Showing first — switch pill above to compare.`, "success");
       } catch (e) {
         console.error(e);
@@ -2026,7 +2026,7 @@
           `Loaded ${instances.length} instance(s). Click a table row to change the topology focus.`,
           "success"
         );
-        setBadge("✓ In sync", "ok");
+        setBadge(useDemoData ? "✓ In sync (sample)" : "✓ In sync", "ok");
       } catch (e) {
         console.error(e);
         viewInstances = [];
